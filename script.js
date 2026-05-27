@@ -77,6 +77,7 @@ function createDraft() {
     veiculo: { placa: "", modelo: "", ano: "", cor: "" },
     itens: [],
     descontoPercentual: 0,
+    descontoValor: 0,
     subtotal: 0,
     desconto: 0,
     total: 0,
@@ -294,11 +295,18 @@ function parseBudgetText(text) {
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
   const items = [];
   let discountPercent = 0;
+  let discountValue = 0;
 
   lines.forEach((line) => {
-    const discountMatch = line.match(/desconto.*?(\d+(?:[,.]\d+)?)\s*%/i);
-    if (discountMatch) {
-      discountPercent = Number(discountMatch[1].replace(",", ".")) || 0;
+    const discountPercentMatch = line.match(/desconto.*?(\d+(?:[,.]\d+)?)\s*%/i);
+    if (discountPercentMatch) {
+      discountPercent = Number(discountPercentMatch[1].replace(",", ".")) || 0;
+      return;
+    }
+
+    const discountValueMatch = line.match(/desconto.*?(?:r\$\s*)?(\d+(?:[,.]\d{1,2})?)\s*(?:reais|real)?$/i);
+    if (discountValueMatch) {
+      discountValue = Number(discountValueMatch[1].replace(",", ".")) || 0;
       return;
     }
 
@@ -317,10 +325,18 @@ function parseBudgetText(text) {
   });
 
   const subtotal = items.reduce((sum, item) => sum + item.valor, 0);
-  const desconto = subtotal * (discountPercent / 100);
+  const percentDiscountValue = subtotal * (discountPercent / 100);
+  const desconto = Math.min(percentDiscountValue + discountValue, subtotal);
   const total = Math.max(subtotal - desconto, 0);
 
-  return { items, discountPercent, subtotal, desconto, total };
+  return { items, discountPercent, discountValue, subtotal, desconto, total };
+}
+
+function discountLabel(percent, value) {
+  const parts = [];
+  if (percent) parts.push(`${percent}%`);
+  if (value) parts.push(money(value));
+  return parts.length ? `Desconto (${parts.join(" + ")})` : "Desconto";
 }
 
 function renderParsedPreview() {
@@ -333,7 +349,7 @@ function renderParsedPreview() {
       </div>
     `).join("") || "<span>Nenhum item identificado ainda.</span>"}
     <div class="parsed-line"><span>Subtotal</span><strong>${money(parsed.subtotal)}</strong></div>
-    <div class="parsed-line"><span>Desconto ${parsed.discountPercent}%</span><strong>${money(parsed.desconto)}</strong></div>
+    <div class="parsed-line"><span>${discountLabel(parsed.discountPercent, parsed.discountValue)}</span><strong>${money(parsed.desconto)}</strong></div>
     <div class="parsed-line total-row"><span>Total</span><strong>${money(parsed.total)}</strong></div>
   `;
 }
@@ -348,6 +364,7 @@ function finishBudget() {
 
   draft.itens = parsed.items;
   draft.descontoPercentual = parsed.discountPercent;
+  draft.descontoValor = parsed.discountValue;
   draft.subtotal = parsed.subtotal;
   draft.desconto = parsed.desconto;
   draft.total = parsed.total;
@@ -397,7 +414,7 @@ function renderDetail(budget) {
         </div>
       `).join("")}
       <div class="detail-line"><span>Subtotal</span><strong>${money(budget.subtotal)}</strong></div>
-      <div class="detail-line"><span>Desconto ${budget.descontoPercentual}%</span><strong>${money(budget.desconto)}</strong></div>
+      <div class="detail-line"><span>${discountLabel(budget.descontoPercentual, budget.descontoValor)}</span><strong>${money(budget.desconto)}</strong></div>
       <div class="detail-line total-row"><span>Valor final</span><strong>${money(budget.total)}</strong></div>
     </section>
 
@@ -426,7 +443,7 @@ Veiculo: ${budget.veiculo.placa} - ${budget.veiculo.modelo}
 ${budget.itens.map((item) => `- ${item.descricao}: ${money(item.valor)}`).join("\n")}
 
 Subtotal: ${money(budget.subtotal)}
-Desconto: ${money(budget.desconto)}
+${discountLabel(budget.descontoPercentual, budget.descontoValor)}: ${money(budget.desconto)}
 Total: ${money(budget.total)}
 
 ${OFFICE.nome}
@@ -486,7 +503,7 @@ function generatePdf(budget) {
           <tbody>${rows}</tbody>
         </table>
         <p>Subtotal: ${money(budget.subtotal)}</p>
-        <p>Desconto: ${money(budget.desconto)}</p>
+        <p>${discountLabel(budget.descontoPercentual, budget.descontoValor)}: ${money(budget.desconto)}</p>
         <p class="total">Valor final: ${money(budget.total)}</p>
         <script>window.print();<\/script>
       </body>
