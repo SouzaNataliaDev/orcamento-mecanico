@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#116a5b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Orcamento Mecanico" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="description" content="Crie orcamentos de oficina e envie pelo WhatsApp." />
+    <title>Orcamento Mecanico</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="Criador de orcamento">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Oficina</p>
+            <h1>Orcamento rapido</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="secondary-button install-button" type="button" id="installButton" hidden>Instalar app</button>
+            <div class="total-chip">
+              <span>Total</span>
+              <strong id="totalPreview">R$ 0,00</strong>
+            </div>
+          </div>
+        </header>
+
+        <form id="budgetForm" class="budget-form">
+          <section class="panel">
+            <div class="section-title">
+              <h2>Cliente e veiculo</h2>
+            </div>
+
+            <div class="form-grid">
+              <label>
+                Cliente
+                <input id="clientName" name="clientName" autocomplete="name" placeholder="Nome do cliente" required />
+              </label>
+
+              <label>
+                WhatsApp
+                <input id="clientPhone" name="clientPhone" inputmode="tel" placeholder="DDD + numero" required />
+              </label>
+
+              <label>
+                Veiculo
+                <input id="vehicle" name="vehicle" placeholder="Ex: Gol 1.0" required />
+              </label>
+
+              <label>
+                Placa
+                <input id="plate" name="plate" placeholder="ABC1D23" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-title with-action">
+              <h2>Servicos e pecas</h2>
+              <button class="secondary-button" type="button" id="addItemButton">Adicionar item</button>
+            </div>
+
+            <div id="itemsList" class="items-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <h2>Fechamento</h2>
+            </div>
+
+            <div class="form-grid three-cols">
+              <label>
+                Desconto
+                <input id="discount" name="discount" type="number" min="0" step="0.01" value="0" />
+              </label>
+
+              <label>
+                Validade
+                <input id="validUntil" name="validUntil" type="date" />
+              </label>
+
+              <label>
+                Pagamento
+                <select id="payment" name="payment">
+                  <option value="Pix">Pix</option>
+                  <option value="Cartao">Cartao</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="A combinar">A combinar</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="full-label">
+              Observacoes
+              <textarea id="notes" name="notes" rows="4" placeholder="Ex: valores sujeitos a confirmacao apos desmontagem"></textarea>
+            </label>
+          </section>
+
+          <footer class="actions">
+            <button class="ghost-button" type="button" id="clearButton">Limpar</button>
+            <button class="primary-button" type="submit">Enviar pelo WhatsApp</button>
+          </footer>
+        </form>
+      </section>
+
+      <aside class="preview-panel" aria-label="Previa do orcamento">
+        <div class="preview-card">
+          <div class="preview-header">
+            <span class="brand-mark">OM</span>
+            <div>
+              <p class="eyebrow">Previa</p>
+              <h2>Mensagem pronta</h2>
+            </div>
+          </div>
+          <pre id="messagePreview"></pre>
+        </div>
+      </aside>
+    </main>
+
+    <template id="itemTemplate">
+      <article class="item-row">
+        <label>
+          Item
+          <input class="item-description" placeholder="Ex: Troca de oleo" required />
+        </label>
+        <label>
+          Qtd.
+          <input class="item-quantity" type="number" min="1" step="1" value="1" required />
+        </label>
+        <label>
+          Valor unit.
+          <input class="item-price" type="number" min="0" step="0.01" placeholder="0,00" required />
+        </label>
+        <button class="icon-button remove-item" type="button" aria-label="Remover item">x</button>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
