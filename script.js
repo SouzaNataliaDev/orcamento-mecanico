@@ -298,15 +298,17 @@ function parseBudgetText(text) {
   let discountValue = 0;
 
   lines.forEach((line) => {
-    const discountPercentMatch = line.match(/desconto.*?(\d+(?:[,.]\d+)?)\s*%/i);
+    const discountPercentMatch = line.match(/^(?:aplica\s+)?desconto\b.*?(\d+(?:[,.]\d+)?)\s*%/i);
     if (discountPercentMatch) {
-      discountPercent = Number(discountPercentMatch[1].replace(",", ".")) || 0;
+      const parsedPercent = Number(discountPercentMatch[1].replace(",", ".")) || 0;
+      discountPercent = Math.min(Math.max(parsedPercent, 0), 100);
       return;
     }
 
-    const discountValueMatch = line.match(/desconto.*?(?:r\$\s*)?(\d+(?:[,.]\d{1,2})?)\s*(?:reais|real)?$/i);
+    const discountValueMatch = line.match(/^(?:aplica\s+)?desconto\b.*?(?:r\$\s*)?(\d+(?:[,.]\d{1,2})?)\s*(?:reais|real)?$/i);
     if (discountValueMatch) {
-      discountValue = Number(discountValueMatch[1].replace(",", ".")) || 0;
+      const parsedValue = Number(discountValueMatch[1].replace(",", ".")) || 0;
+      discountValue += Math.max(parsedValue, 0);
       return;
     }
 
