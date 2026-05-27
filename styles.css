@@ -171,6 +171,23 @@ textarea:focus {
   font-size: 1.35rem;
 }
 
+.demo-link {
+  display: block;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 8px 22px rgba(20, 35, 48, 0.08);
+}
+
+.demo-link:hover {
+  border-color: rgba(17, 106, 91, 0.45);
+}
+
 .install-button {
   margin-left: auto;
 }
