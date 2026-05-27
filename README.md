@@ -36,11 +36,20 @@ PATH="$PWD/.tools/node/bin:$PATH" npm run init-repo
 
 ## O que ja esta pronto
 
-- Dados do cliente e do veiculo
-- Lista de servicos e pecas
+- Home com timeline de orcamentos salvos
+- Busca por cliente, O.S ou placa
+- Menu lateral simples
+- Fluxo pelo botao +
+- Tela de camera para leitura simulada de placa
+- Entrada manual de placa antiga ou Mercosul
+- Consulta mock preparada em `consultarDadosVeiculo(placa)`
+- Confirmacao editavel do veiculo
+- Cadastro do cliente em etapas simples
+- Orcamento por texto com parser de itens, valores e desconto
 - Calculo automatico de subtotal, desconto e total
-- Previa da mensagem do WhatsApp
-- Botao para abrir o WhatsApp com o orcamento preenchido
+- Historico em localStorage
+- Geracao de PDF via impressao/salvar PDF
+- Compartilhamento por WhatsApp e email
 - Layout responsivo para celular e computador
 - PWA instalavel com icone, manifesto e cache offline basico
 
