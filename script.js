@@ -1,4 +1,5 @@
 const STORAGE_KEY = "oficina_orcamentos_v2";
+const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
 const OFFICE = {
   nome: "Oficina Modelo",
   telefone: "(11) 99999-0000",
@@ -25,6 +26,7 @@ const budgetTextInput = document.querySelector("#budgetTextInput");
 const parsedPreview = document.querySelector("#parsedPreview");
 
 let budgets = loadBudgets();
+let vehicleMemory = loadVehicleMemory();
 let draft = createDraft();
 let currentClientStep = 0;
 let cameraStream = null;
@@ -93,6 +95,33 @@ function loadBudgets() {
 
 function saveBudgets() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(budgets));
+}
+
+function loadVehicleMemory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VEHICLE_MEMORY_KEY));
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) return saved;
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function saveVehicleMemory() {
+  localStorage.setItem(VEHICLE_MEMORY_KEY, JSON.stringify(vehicleMemory));
+}
+
+function rememberVehicle(vehicle) {
+  const placa = normalizePlate(vehicle.placa);
+  if (!isValidPlate(placa)) return;
+
+  vehicleMemory[placa] = {
+    placa,
+    modelo: vehicle.modelo || "",
+    ano: vehicle.ano || "",
+    cor: vehicle.cor || "",
+  };
+  saveVehicleMemory();
 }
 
 function nextOsNumber() {
@@ -204,6 +233,10 @@ async function handlePlate(plate) {
 
 async function consultarDadosVeiculo(placa) {
   await new Promise((resolve) => setTimeout(resolve, 250));
+  if (vehicleMemory[placa]) {
+    return { ...vehicleMemory[placa] };
+  }
+
   return vehicleMock[placa] || {
     placa,
     modelo: "Modelo nao encontrado",
@@ -505,6 +538,7 @@ document.querySelector("#vehicleContinueButton").addEventListener("click", () =>
     alert("Confira a placa antes de continuar.");
     return;
   }
+  rememberVehicle(draft.veiculo);
   renderClientStep();
 });
 

@@ -43,6 +43,7 @@ PATH="$PWD/.tools/node/bin:$PATH" npm run init-repo
 - Tela de camera para leitura simulada de placa
 - Entrada manual de placa antiga ou Mercosul
 - Consulta mock preparada em `consultarDadosVeiculo(placa)`
+- Base propria de placas: veiculo confirmado fica salvo para preencher automaticamente na proxima O.S
 - Confirmacao editavel do veiculo
 - Cadastro do cliente em etapas simples
 - Orcamento por texto com parser de itens, valores e desconto
