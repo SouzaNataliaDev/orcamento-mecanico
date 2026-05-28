@@ -753,6 +753,36 @@ function shareEmail(budget) {
 }
 
 function generatePdf(budget) {
+  const html = buildAmmarPdfHtml(budget);
+
+  let printWindow = null;
+
+  try {
+    printWindow = window.open("", "_blank");
+  } catch (error) {
+    printWindow = null;
+  }
+
+  if (!printWindow) {
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `OS_${budget.os}_AMMAR.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    alert("O navegador bloqueou a abertura automática. Baixei um arquivo HTML da O.S. Abra ele e use Imprimir > Salvar como PDF.");
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
+function buildAmmarPdfHtml(budget) {
   const services = getBudgetServices(budget);
   const parts = getBudgetParts(budget);
   const serviceTotal = services.reduce((sum, item) => sum + Number(item.valor || 0), 0);
@@ -763,13 +793,12 @@ function generatePdf(budget) {
   const serviceRows = buildAmmarRows(services, 8);
   const partRows = buildAmmarRows(parts, 8);
 
-  const printWindow = window.open("", "_blank", "noopener");
-
-  printWindow.document.write(`
+  return `
     <!doctype html>
     <html lang="pt-BR">
     <head>
       <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</title>
       <style>
         * { box-sizing: border-box; }
@@ -779,6 +808,24 @@ function generatePdf(budget) {
           background: #ffffff;
           font-family: Arial, Helvetica, sans-serif;
           color: #000;
+        }
+
+        .print-actions {
+          width: 794px;
+          margin: 0 auto 16px;
+          display: flex;
+          gap: 10px;
+          justify-content: flex-end;
+        }
+
+        .print-actions button {
+          border: 0;
+          border-radius: 8px;
+          padding: 10px 14px;
+          background: #111827;
+          color: #fff;
+          font-weight: 700;
+          cursor: pointer;
         }
 
         .page {
@@ -930,11 +977,17 @@ function generatePdf(budget) {
 
         @media print {
           body { padding: 0; }
+          .print-actions { display: none; }
           .page { width: 100%; min-height: auto; }
         }
       </style>
     </head>
     <body>
+      <div class="print-actions">
+        <button onclick="window.print()">Imprimir / Salvar PDF</button>
+        <button onclick="window.close()">Fechar</button>
+      </div>
+
       <main class="page">
         <header class="header">
           <div class="logo-box">
@@ -1026,14 +1079,12 @@ function generatePdf(budget) {
         window.onload = function() {
           setTimeout(function() {
             window.print();
-          }, 300);
+          }, 500);
         };
       <\/script>
     </body>
     </html>
-  `);
-
-  printWindow.document.close();
+  `;
 }
 
 function buildAmmarRows(items, minRows = 8) {
@@ -1298,5 +1349,9 @@ renderHome();
 checkApprovalFromUrl();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  navigator.serviceWorker.register("./service-worker.js")
+    .then((registration) => {
+      registration.update();
+    })
+    .catch(() => {});
 }
