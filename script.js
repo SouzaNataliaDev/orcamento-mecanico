@@ -1,5 +1,6 @@
-const STORAGE_KEY = "oficina_orcamentos_v2";
+const STORAGE_KEY = "oficina_orcamentos_v3";
 const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
+
 const OFFICE = {
   nome: "Oficina Modelo",
   telefone: "(11) 99999-0000",
@@ -33,8 +34,8 @@ let cameraStream = null;
 let deferredInstallPrompt = null;
 
 const clientSteps = [
-  { key: "nome", title: "Nome do cliente", label: "Nome", type: "text", placeholder: "Joao Silva" },
-  { key: "telefone", title: "Telefone", label: "WhatsApp", type: "tel", placeholder: "DDD + numero" },
+  { key: "nome", title: "Nome do cliente", label: "Nome", type: "text", placeholder: "João Silva" },
+  { key: "telefone", title: "Telefone", label: "WhatsApp", type: "tel", placeholder: "DDD + número" },
   { key: "email", title: "Email opcional", label: "Email", type: "email", placeholder: "cliente@email.com" },
 ];
 
@@ -44,10 +45,7 @@ const vehicleMock = {
   BRA2E19: { placa: "BRA2E19", modelo: "Chevrolet Onix LT", ano: "2021", cor: "Preto" },
 };
 
-const moneyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+const moneyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 function money(value) {
   return moneyFormatter.format(Number(value) || 0);
@@ -55,6 +53,10 @@ function money(value) {
 
 function todayText() {
   return new Intl.DateTimeFormat("pt-BR").format(new Date());
+}
+
+function nowIso() {
+  return new Date().toISOString();
 }
 
 function onlyDigits(value) {
@@ -73,6 +75,9 @@ function createDraft() {
   return {
     os: nextOsNumber(),
     data: todayText(),
+    criadoEm: nowIso(),
+    atualizadoEm: nowIso(),
+    status: "pendente",
     cliente: { nome: "", telefone: "", email: "" },
     veiculo: { placa: "", modelo: "", ano: "", cor: "" },
     itens: [],
@@ -81,17 +86,44 @@ function createDraft() {
     subtotal: 0,
     desconto: 0,
     total: 0,
+    anexos: [],
+    observacoes: "",
   };
 }
 
 function loadBudgets() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Array.isArray(saved)) return saved;
+    if (Array.isArray(saved)) return saved.map(normalizeBudget);
   } catch {
     return [];
   }
+
+  // Migração simples da versão antiga, caso exista.
+  try {
+    const old = JSON.parse(localStorage.getItem("oficina_orcamentos_v2"));
+    if (Array.isArray(old)) {
+      const migrated = old.map(normalizeBudget);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+  } catch {
+    return [];
+  }
+
   return [];
+}
+
+function normalizeBudget(budget) {
+  return {
+    ...budget,
+    data: budget.data || todayText(),
+    criadoEm: budget.criadoEm || nowIso(),
+    atualizadoEm: budget.atualizadoEm || budget.criadoEm || nowIso(),
+    status: budget.status || "pendente",
+    anexos: Array.isArray(budget.anexos) ? budget.anexos : [],
+    observacoes: budget.observacoes || "",
+  };
 }
 
 function saveBudgets() {
@@ -115,7 +147,6 @@ function saveVehicleMemory() {
 function rememberVehicle(vehicle) {
   const placa = normalizePlate(vehicle.placa);
   if (!isValidPlate(placa)) return;
-
   vehicleMemory[placa] = {
     placa,
     modelo: vehicle.modelo || "",
@@ -133,15 +164,15 @@ function nextOsNumber() {
 function showView(id) {
   views.forEach((view) => view.classList.toggle("active", view.id === id));
   const titles = {
-    homeView: "Orcamentos",
+    homeView: "Orçamentos",
     plateView: "Ler placa",
     manualPlateView: "Placa",
-    vehicleView: "Veiculo",
+    vehicleView: "Veículo",
     clientView: "Cliente",
-    budgetTextView: "Orcamento",
+    budgetTextView: "Orçamento",
     detailView: "Resumo",
   };
-  screenTitle.textContent = titles[id] || "Orcamentos";
+  screenTitle.textContent = titles[id] || "Orçamentos";
   newBudgetButton.hidden = id !== "homeView";
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -149,24 +180,45 @@ function showView(id) {
 function renderHome() {
   const term = searchInput.value.trim().toLowerCase();
   const filtered = budgets.filter((budget) => {
-    const text = `${budget.os} ${budget.cliente.nome} ${budget.veiculo.placa}`.toLowerCase();
+    const text = `${budget.os} ${budget.cliente.nome} ${budget.veiculo.placa} ${budget.status} ${budget.data}`.toLowerCase();
     return text.includes(term);
   });
 
   budgetCount.textContent = budgets.length;
   emptyState.hidden = filtered.length > 0;
+
   budgetList.innerHTML = filtered
     .map((budget) => `
-      <button class="budget-card" type="button" data-os="${budget.os}">
+      <button class="budget-card" data-os="${budget.os}">
         <span>
           <strong>O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</strong>
-          <span>${escapeHtml(budget.veiculo.placa || "Sem placa")}</span>
-          <span>${escapeHtml(budget.data)}</span>
+          <span>Data: ${escapeHtml(budget.data)} • Placa: ${escapeHtml(budget.veiculo.placa || "Sem placa")}</span>
+          <span>${escapeHtml(budget.veiculo.modelo || "Veículo não informado")}</span>
+          <span class="status-pill status-${budget.status}">${statusLabel(budget.status)}</span>
         </span>
         <span class="budget-total">${money(budget.total)}</span>
       </button>
     `)
     .join("");
+
+  budgetList.querySelectorAll(".budget-card").forEach((button) => {
+    button.addEventListener("click", () => {
+      const budget = budgets.find((item) => String(item.os) === String(button.dataset.os));
+      if (budget) {
+        renderDetail(budget);
+        showView("detailView");
+      }
+    });
+  });
+}
+
+function statusLabel(status) {
+  const labels = {
+    pendente: "Pendente de aceite",
+    aprovado: "Aprovado - pode iniciar",
+    reprovado: "Reprovado",
+  };
+  return labels[status] || status;
 }
 
 function escapeHtml(value) {
@@ -189,10 +241,9 @@ async function startNewBudget() {
 
 async function startCamera() {
   stopCamera();
-  cameraStatus.textContent = "Abrindo camera traseira...";
-
+  cameraStatus.textContent = "Abrindo câmera traseira...";
   if (!navigator.mediaDevices?.getUserMedia) {
-    cameraStatus.textContent = "Camera indisponivel. Toque em Manual.";
+    cameraStatus.textContent = "Câmera indisponível. Toque em Manual.";
     return;
   }
 
@@ -204,7 +255,7 @@ async function startCamera() {
     cameraPreview.srcObject = cameraStream;
     cameraStatus.textContent = "Enquadre a placa e toque em Capturar.";
   } catch {
-    cameraStatus.textContent = "Nao foi possivel abrir a camera. Toque em Manual.";
+    cameraStatus.textContent = "Não foi possível abrir a câmera. Toque em Manual.";
   }
 }
 
@@ -222,10 +273,9 @@ function simulatePlateRead() {
 async function handlePlate(plate) {
   const cleanPlate = normalizePlate(plate);
   if (!isValidPlate(cleanPlate)) {
-    alert("Digite uma placa valida. Exemplos: ABC1234 ou ABC1D23.");
+    alert("Digite uma placa válida. Exemplos: ABC1234 ou ABC1D23.");
     return;
   }
-
   stopCamera();
   draft.veiculo = await consultarDadosVeiculo(cleanPlate);
   fillVehicleForm();
@@ -234,16 +284,8 @@ async function handlePlate(plate) {
 
 async function consultarDadosVeiculo(placa) {
   await new Promise((resolve) => setTimeout(resolve, 250));
-  if (vehicleMemory[placa]) {
-    return { ...vehicleMemory[placa] };
-  }
-
-  return vehicleMock[placa] || {
-    placa,
-    modelo: "Modelo nao encontrado",
-    ano: "",
-    cor: "",
-  };
+  if (vehicleMemory[placa]) return { ...vehicleMemory[placa] };
+  return vehicleMock[placa] || { placa, modelo: "Modelo não encontrado", ano: "", cor: "" };
 }
 
 function fillVehicleForm() {
@@ -267,11 +309,11 @@ function renderClientStep() {
   const input = document.querySelector("#clientStepInput");
   document.querySelector("#clientStepLabel").textContent = `Passo 3 de 4 - ${currentClientStep + 1}/3`;
   document.querySelector("#clientStepTitle").textContent = step.title;
-  document.querySelector("#clientFieldLabel").textContent = step.label;
+  document.querySelector("#clientFieldLabel").firstChild.textContent = step.label;
   input.type = step.type;
   input.placeholder = step.placeholder;
   input.value = draft.cliente[step.key] || "";
-  document.querySelector("#clientNextButton").textContent = currentClientStep === clientSteps.length - 1 ? "Continuar" : "Proximo";
+  document.querySelector("#clientNextButton").textContent = currentClientStep === clientSteps.length - 1 ? "Continuar" : "Próximo";
   showView("clientView");
   setTimeout(() => input.focus(), 120);
 }
@@ -316,14 +358,9 @@ function parseBudgetText(text) {
     if (!valueMatch) return;
 
     const value = Number(valueMatch[1].replace(",", ".")) || 0;
-    const description = line
-      .replace(valueMatch[0], "")
-      .replace(/\s*-\s*$/, "")
-      .trim();
+    const description = line.replace(valueMatch[0], "").replace(/\s*-\s*$/, "").trim();
 
-    if (description && value > 0) {
-      items.push({ descricao: description, valor: value });
-    }
+    if (description && value > 0) items.push({ descricao: description, valor: value });
   });
 
   const subtotal = items.reduce((sum, item) => sum + item.valor, 0);
@@ -345,11 +382,8 @@ function renderParsedPreview() {
   const parsed = parseBudgetText(budgetTextInput.value);
   parsedPreview.innerHTML = `
     ${parsed.items.map((item) => `
-      <div class="parsed-line">
-        <span>${escapeHtml(item.descricao)}</span>
-        <strong>${money(item.valor)}</strong>
-      </div>
-    `).join("") || "<span>Nenhum item identificado ainda.</span>"}
+      <div class="parsed-line"><span>${escapeHtml(item.descricao)}</span><strong>${money(item.valor)}</strong></div>
+    `).join("") || "<p>Nenhum item identificado ainda.</p>"}
     <div class="parsed-line"><span>Subtotal</span><strong>${money(parsed.subtotal)}</strong></div>
     <div class="parsed-line"><span>${discountLabel(parsed.discountPercent, parsed.discountValue)}</span><strong>${money(parsed.desconto)}</strong></div>
     <div class="parsed-line total-row"><span>Total</span><strong>${money(parsed.total)}</strong></div>
@@ -370,6 +404,7 @@ function finishBudget() {
   draft.subtotal = parsed.subtotal;
   draft.desconto = parsed.desconto;
   draft.total = parsed.total;
+  draft.atualizadoEm = nowIso();
 
   const existingIndex = budgets.findIndex((budget) => budget.os === draft.os);
   if (existingIndex >= 0) {
@@ -385,68 +420,229 @@ function finishBudget() {
 }
 
 function renderDetail(budget) {
+  const acceptLink = buildApprovalLink(budget.os, "aprovar");
+  const rejectLink = buildApprovalLink(budget.os, "reprovar");
+
   document.querySelector("#detailCard").innerHTML = `
     <div class="detail-head">
       <div>
-        <p class="eyebrow">Orcamento pronto</p>
+        <p class="step-label">Orçamento ${statusLabel(budget.status)}</p>
         <h2>O.S #${budget.os}</h2>
+        <p>Data: ${escapeHtml(budget.data)}</p>
       </div>
       <strong>${money(budget.total)}</strong>
     </div>
 
-    <section class="detail-section">
+    <div class="detail-section">
+      <h3>Status</h3>
+      <span class="status-pill status-${budget.status}">${statusLabel(budget.status)}</span>
+      <div class="button-row">
+        <button id="approveButton" class="primary-button">Marcar aprovado</button>
+        <button id="rejectButton" class="danger-button">Marcar reprovado</button>
+      </div>
+    </div>
+
+    <div class="detail-section">
       <h3>Cliente</h3>
-      <span>${escapeHtml(budget.cliente.nome)}</span>
-      <span>${escapeHtml(budget.cliente.telefone)}</span>
-      <span>${escapeHtml(budget.cliente.email || "Email nao informado")}</span>
-    </section>
+      <p>${escapeHtml(budget.cliente.nome)}</p>
+      <p>${escapeHtml(budget.cliente.telefone)}</p>
+      <p>${escapeHtml(budget.cliente.email || "Email não informado")}</p>
+    </div>
 
-    <section class="detail-section">
-      <h3>Veiculo</h3>
-      <span>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</span>
-      <span>${escapeHtml(budget.veiculo.ano || "Ano nao informado")} - ${escapeHtml(budget.veiculo.cor || "Cor nao informada")}</span>
-    </section>
+    <div class="detail-section">
+      <h3>Veículo</h3>
+      <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
+      <p>${escapeHtml(budget.veiculo.ano || "Ano não informado")} - ${escapeHtml(budget.veiculo.cor || "Cor não informada")}</p>
+    </div>
 
-    <section class="detail-section">
+    <div class="detail-section">
       <h3>Itens</h3>
       ${budget.itens.map((item) => `
-        <div class="detail-line">
-          <span>${escapeHtml(item.descricao)}</span>
-          <strong>${money(item.valor)}</strong>
-        </div>
+        <div class="detail-line"><span>${escapeHtml(item.descricao)}</span><strong>${money(item.valor)}</strong></div>
       `).join("")}
       <div class="detail-line"><span>Subtotal</span><strong>${money(budget.subtotal)}</strong></div>
       <div class="detail-line"><span>${discountLabel(budget.descontoPercentual, budget.descontoValor)}</span><strong>${money(budget.desconto)}</strong></div>
       <div class="detail-line total-row"><span>Valor final</span><strong>${money(budget.total)}</strong></div>
-    </section>
+    </div>
+
+    <div class="detail-section">
+      <h3>Fotos e arquivos da O.S</h3>
+      <input id="attachmentInput" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+      <div id="attachmentList">${renderAttachments(budget)}</div>
+    </div>
+
+    <div class="detail-section accept-box">
+      <h3>Link de aceite</h3>
+      <p>Use estes links no PDF ou envie para o cliente aprovar/reprovar.</p>
+      <p><strong>Aprovar:</strong></p>
+      <p class="link-text">${escapeHtml(acceptLink)}</p>
+      <p><strong>Reprovar:</strong></p>
+      <p class="link-text">${escapeHtml(rejectLink)}</p>
+    </div>
 
     <div class="button-row">
-      <button class="secondary-button" type="button" id="pdfButton">Gerar PDF</button>
-      <button class="primary-button" type="button" id="whatsButton">WhatsApp</button>
-    </div>
-    <div class="button-row">
-      <button class="secondary-button" type="button" id="emailButton">Email</button>
-      <button class="secondary-button" type="button" id="homeButton">Voltar ao inicio</button>
+      <button id="editButton" class="secondary-button">Alterar orçamento</button>
+      <button id="pdfButton" class="primary-button">Gerar PDF</button>
+      <button id="whatsButton" class="secondary-button">WhatsApp</button>
+      <button id="emailButton" class="secondary-button">Email</button>
+      <button id="homeButton" class="secondary-button">Voltar ao início</button>
     </div>
   `;
 
+  document.querySelector("#approveButton").addEventListener("click", () => updateBudgetStatus(budget.os, "aprovado"));
+  document.querySelector("#rejectButton").addEventListener("click", () => updateBudgetStatus(budget.os, "reprovado"));
+  document.querySelector("#editButton").addEventListener("click", () => editBudget(budget.os));
   document.querySelector("#pdfButton").addEventListener("click", () => generatePdf(budget));
   document.querySelector("#whatsButton").addEventListener("click", () => shareWhatsApp(budget));
   document.querySelector("#emailButton").addEventListener("click", () => shareEmail(budget));
   document.querySelector("#homeButton").addEventListener("click", () => showView("homeView"));
+  document.querySelector("#attachmentInput").addEventListener("change", (event) => addAttachments(budget.os, event.target.files));
+}
+
+function renderAttachments(budget) {
+  if (!budget.anexos?.length) return `<p class="status-text">Nenhuma foto ou arquivo adicionado ainda.</p>`;
+
+  const photos = budget.anexos.filter((file) => file.type.startsWith("image/"));
+  const docs = budget.anexos.filter((file) => !file.type.startsWith("image/"));
+
+  return `
+    ${photos.length ? `<div class="photo-grid">${photos.map((file) => `
+      <div class="photo-card">
+        <img src="${file.dataUrl}" alt="${escapeHtml(file.name)}" />
+        <small>${escapeHtml(file.name)}</small>
+        <button class="danger-button" onclick="removeAttachment(${budget.os}, '${file.id}')">Remover</button>
+      </div>
+    `).join("")}</div>` : ""}
+    ${docs.map((file) => `
+      <div class="file-card">
+        <a href="${file.dataUrl}" download="${escapeHtml(file.name)}">${escapeHtml(file.name)}</a>
+        <button class="danger-button" onclick="removeAttachment(${budget.os}, '${file.id}')">Remover</button>
+      </div>
+    `).join("")}
+  `;
+}
+
+async function addAttachments(os, files) {
+  const budget = budgets.find((item) => item.os === os);
+  if (!budget || !files?.length) return;
+
+  for (const file of files) {
+    const dataUrl = await fileToDataUrl(file);
+    budget.anexos.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      dataUrl,
+      createdAt: nowIso(),
+    });
+  }
+
+  budget.atualizadoEm = nowIso();
+  saveBudgets();
+  renderDetail(budget);
+}
+
+function removeAttachment(os, attachmentId) {
+  const budget = budgets.find((item) => item.os === os);
+  if (!budget) return;
+  budget.anexos = budget.anexos.filter((file) => file.id !== attachmentId);
+  budget.atualizadoEm = nowIso();
+  saveBudgets();
+  renderDetail(budget);
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function editBudget(os) {
+  const budget = budgets.find((item) => item.os === os);
+  if (!budget) return;
+
+  draft = structuredClone(budget);
+  currentClientStep = 0;
+
+  fillVehicleForm();
+  budgetTextInput.value = budget.itens.map((item) => `${item.descricao} - ${String(item.valor).replace(".", ",")} reais`).join("\n");
+
+  if (budget.descontoPercentual) {
+    budgetTextInput.value += `\naplica desconto de ${budget.descontoPercentual}%`;
+  }
+
+  if (budget.descontoValor) {
+    budgetTextInput.value += `\ndesconto ${String(budget.descontoValor).replace(".", ",")} reais`;
+  }
+
+  renderClientStep();
+}
+
+function updateBudgetStatus(os, status) {
+  const budget = budgets.find((item) => item.os === Number(os));
+  if (!budget) return false;
+
+  budget.status = status;
+  budget.atualizadoEm = nowIso();
+  saveBudgets();
+  renderHome();
+  renderDetail(budget);
+  return true;
+}
+
+function buildApprovalLink(os, action) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("os", os);
+  url.searchParams.set("acao", action);
+  return url.toString();
+}
+
+function checkApprovalFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const os = Number(params.get("os"));
+  const action = params.get("acao");
+
+  if (!os || !action) return;
+
+  const status = action === "aprovar" ? "aprovado" : action === "reprovar" ? "reprovado" : "";
+  if (!status) return;
+
+  const ok = updateBudgetStatus(os, status);
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.search = "";
+  history.replaceState({}, "", cleanUrl.toString());
+
+  if (ok) {
+    alert(`O.S #${os} marcada como ${statusLabel(status)}.`);
+  } else {
+    alert(`Não encontrei a O.S #${os} neste aparelho. Para funcionar 100%, use nuvem/Firebase.`);
+  }
 }
 
 function buildMessage(budget) {
-  return `Ola, ${budget.cliente.nome}! Segue o orcamento:
+  return `Olá, ${budget.cliente.nome}! Segue o orçamento:
 
-O.S #${budget.os} - ${budget.data}
-Veiculo: ${budget.veiculo.placa} - ${budget.veiculo.modelo}
+O.S #${budget.os}
+Data: ${budget.data}
+Status: ${statusLabel(budget.status)}
+
+Veículo: ${budget.veiculo.placa} - ${budget.veiculo.modelo}
 
 ${budget.itens.map((item) => `- ${item.descricao}: ${money(item.valor)}`).join("\n")}
 
 Subtotal: ${money(budget.subtotal)}
 ${discountLabel(budget.descontoPercentual, budget.descontoValor)}: ${money(budget.desconto)}
 Total: ${money(budget.total)}
+
+Link para aprovar:
+${buildApprovalLink(budget.os, "aprovar")}
+
+Link para reprovar:
+${buildApprovalLink(budget.os, "reprovar")}
 
 ${OFFICE.nome}
 ${OFFICE.telefone}`;
@@ -459,56 +655,104 @@ function shareWhatsApp(budget) {
 }
 
 function shareEmail(budget) {
-  const subject = encodeURIComponent(`Orcamento O.S #${budget.os}`);
+  const subject = encodeURIComponent(`Orçamento O.S #${budget.os}`);
   const body = encodeURIComponent(buildMessage(budget));
   window.location.href = `mailto:${budget.cliente.email || ""}?subject=${subject}&body=${body}`;
 }
 
 function generatePdf(budget) {
   const rows = budget.itens.map((item) => `
-    <tr><td>${escapeHtml(item.descricao).toUpperCase()}</td><td>${money(item.valor)}</td></tr>
+    <tr>
+      <td>${escapeHtml(item.descricao).toUpperCase()}</td>
+      <td>${money(item.valor)}</td>
+    </tr>
   `).join("");
+
+  const photos = (budget.anexos || [])
+    .filter((file) => file.type.startsWith("image/"))
+    .slice(0, 6)
+    .map((file) => `<img src="${file.dataUrl}" alt="${escapeHtml(file.name)}" />`)
+    .join("");
+
   const printWindow = window.open("", "_blank", "noopener");
   printWindow.document.write(`
     <!doctype html>
-    <html lang="pt-BR">
-      <head>
-        <title>OS ${budget.os}</title>
-        <style>
-          body { font-family: Arial, sans-serif; color: #111; padding: 28px; }
-          h1 { margin: 0 0 8px; font-size: 28px; }
-          h2 { margin: 22px 0 8px; font-size: 18px; }
-          p { margin: 4px 0; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          td, th { border-bottom: 1px solid #ccc; padding: 10px; text-align: left; }
-          td:last-child, th:last-child { text-align: right; }
-          .total { font-size: 22px; font-weight: 700; }
-        </style>
-      </head>
-      <body>
-        <h1>${escapeHtml(OFFICE.nome)}</h1>
-        <p>${escapeHtml(OFFICE.telefone)}</p>
-        <p>${escapeHtml(OFFICE.endereco)}</p>
-        <h2>Dados da O.S</h2>
-        <p>Numero: #${budget.os}</p>
-        <p>Data: ${escapeHtml(budget.data)}</p>
-        <h2>Cliente</h2>
+    <html>
+    <head>
+      <title>OS ${budget.os}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 28px; color: #111; }
+        h1, h2, p { margin: 0; }
+        h1 { font-size: 26px; }
+        h2 { margin-top: 22px; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+        .top { display: flex; justify-content: space-between; gap: 20px; }
+        .box { margin-top: 12px; line-height: 1.55; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f1f5f9; }
+        .total { font-size: 20px; font-weight: bold; margin-top: 16px; }
+        .accept { margin-top: 24px; padding: 14px; border: 2px dashed #116a5b; }
+        .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .photos img { width: 100%; height: 120px; object-fit: cover; border: 1px solid #ddd; }
+        a { color: #0b5146; word-break: break-all; }
+        @media print { button { display: none; } }
+      </style>
+    </head>
+    <body>
+      <div class="top">
+        <div>
+          <h1>${escapeHtml(OFFICE.nome)}</h1>
+          <p>${escapeHtml(OFFICE.telefone)}</p>
+          <p>${escapeHtml(OFFICE.endereco)}</p>
+        </div>
+        <div>
+          <h1>O.S #${budget.os}</h1>
+          <p>Data: ${escapeHtml(budget.data)}</p>
+          <p>Status: ${statusLabel(budget.status)}</p>
+        </div>
+      </div>
+
+      <h2>Cliente</h2>
+      <div class="box">
         <p>${escapeHtml(budget.cliente.nome)}</p>
         <p>${escapeHtml(budget.cliente.telefone)}</p>
-        <p>${escapeHtml(budget.cliente.email || "Email nao informado")}</p>
-        <h2>Veiculo</h2>
+        <p>${escapeHtml(budget.cliente.email || "Email não informado")}</p>
+      </div>
+
+      <h2>Veículo</h2>
+      <div class="box">
         <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
         <p>${escapeHtml(budget.veiculo.ano)} - ${escapeHtml(budget.veiculo.cor)}</p>
-        <h2>Itens</h2>
-        <table>
-          <thead><tr><th>Item</th><th>Valor</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+      </div>
+
+      <h2>Itens</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Valor</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <div class="box">
         <p>Subtotal: ${money(budget.subtotal)}</p>
         <p>${discountLabel(budget.descontoPercentual, budget.descontoValor)}: ${money(budget.desconto)}</p>
         <p class="total">Valor final: ${money(budget.total)}</p>
-        <script>window.print();<\/script>
-      </body>
+      </div>
+
+      <div class="accept">
+        <h2>Link de aceite</h2>
+        <p><strong>Aprovar orçamento:</strong></p>
+        <p><a href="${buildApprovalLink(budget.os, "aprovar")}">${buildApprovalLink(budget.os, "aprovar")}</a></p>
+        <p><strong>Reprovar orçamento:</strong></p>
+        <p><a href="${buildApprovalLink(budget.os, "reprovar")}">${buildApprovalLink(budget.os, "reprovar")}</a></p>
+      </div>
+
+      ${photos ? `<h2>Fotos da O.S</h2><div class="photos">${photos}</div>` : ""}
+
+      <script>
+        window.onload = function() {
+          window.print();
+        };
+      <\/script>
+    </body>
     </html>
   `);
   printWindow.document.close();
@@ -526,108 +770,87 @@ function closeDrawer() {
   overlay.hidden = true;
 }
 
-newBudgetButton.addEventListener("click", startNewBudget);
-searchButton.addEventListener("click", () => {
-  searchPanel.hidden = !searchPanel.hidden;
-  if (!searchPanel.hidden) searchInput.focus();
-});
-searchInput.addEventListener("input", renderHome);
-menuButton.addEventListener("click", openDrawer);
-closeMenuButton.addEventListener("click", closeDrawer);
-overlay.addEventListener("click", closeDrawer);
+function initEvents() {
+  newBudgetButton.addEventListener("click", startNewBudget);
+  searchButton.addEventListener("click", () => {
+    searchPanel.hidden = !searchPanel.hidden;
+    if (!searchPanel.hidden) searchInput.focus();
+  });
+  searchInput.addEventListener("input", renderHome);
 
-document.querySelector("#manualPlateButton").addEventListener("click", () => {
-  stopCamera();
-  document.querySelector("#manualPlateInput").value = draft.veiculo.placa;
-  showView("manualPlateView");
-  setTimeout(() => document.querySelector("#manualPlateInput").focus(), 120);
-});
+  menuButton.addEventListener("click", openDrawer);
+  closeMenuButton.addEventListener("click", closeDrawer);
+  overlay.addEventListener("click", closeDrawer);
 
-document.querySelector("#capturePlateButton").addEventListener("click", () => {
-  handlePlate(simulatePlateRead());
-});
+  document.querySelector("#manualPlateButton").addEventListener("click", () => {
+    stopCamera();
+    showView("manualPlateView");
+    document.querySelector("#manualPlateInput").focus();
+  });
 
-document.querySelector("#confirmManualPlateButton").addEventListener("click", () => {
-  handlePlate(document.querySelector("#manualPlateInput").value);
-});
+  document.querySelector("#capturePlateButton").addEventListener("click", () => handlePlate(simulatePlateRead()));
+  document.querySelector("#backToCameraButton").addEventListener("click", () => showView("plateView"));
+  document.querySelector("#confirmManualPlateButton").addEventListener("click", () => handlePlate(document.querySelector("#manualPlateInput").value));
 
-document.querySelector("#vehicleContinueButton").addEventListener("click", () => {
-  readVehicleForm();
-  if (!isValidPlate(draft.veiculo.placa)) {
-    alert("Confira a placa antes de continuar.");
-    return;
-  }
-  rememberVehicle(draft.veiculo);
-  renderClientStep();
-});
-
-document.querySelector("#clientNextButton").addEventListener("click", () => {
-  if (!saveClientStep()) return;
-  if (currentClientStep < clientSteps.length - 1) {
-    currentClientStep += 1;
+  document.querySelector("#backVehicleButton").addEventListener("click", () => showView("manualPlateView"));
+  document.querySelector("#confirmVehicleButton").addEventListener("click", () => {
+    readVehicleForm();
+    if (!isValidPlate(draft.veiculo.placa)) {
+      alert("Informe uma placa válida.");
+      return;
+    }
+    rememberVehicle(draft.veiculo);
     renderClientStep();
-    return;
-  }
-  showView("budgetTextView");
-  setTimeout(() => budgetTextInput.focus(), 120);
-});
+  });
 
-document.querySelector("#clientBackButton").addEventListener("click", () => {
-  if (currentClientStep > 0) {
-    currentClientStep -= 1;
+  document.querySelector("#clientBackButton").addEventListener("click", () => {
+    if (currentClientStep > 0) {
+      currentClientStep--;
+      renderClientStep();
+    } else {
+      showView("vehicleView");
+    }
+  });
+
+  document.querySelector("#clientNextButton").addEventListener("click", () => {
+    if (!saveClientStep()) return;
+    if (currentClientStep < clientSteps.length - 1) {
+      currentClientStep++;
+      renderClientStep();
+    } else {
+      renderParsedPreview();
+      showView("budgetTextView");
+      budgetTextInput.focus();
+    }
+  });
+
+  document.querySelector("#backBudgetTextButton").addEventListener("click", () => {
+    currentClientStep = clientSteps.length - 1;
     renderClientStep();
-    return;
-  }
-  showView("vehicleView");
-});
+  });
 
-document.querySelectorAll("[data-back]").forEach((button) => {
-  button.addEventListener("click", () => showView(button.dataset.back));
-});
+  budgetTextInput.addEventListener("input", renderParsedPreview);
+  document.querySelector("#finishBudgetButton").addEventListener("click", finishBudget);
 
-budgetTextInput.addEventListener("input", renderParsedPreview);
-document.querySelector("#finishBudgetButton").addEventListener("click", finishBudget);
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installButton.hidden = false;
+  });
 
-budgetList.addEventListener("click", (event) => {
-  const card = event.target.closest("[data-os]");
-  if (!card) return;
-  const budget = budgets.find((item) => String(item.os) === card.dataset.os);
-  if (!budget) return;
-  draft = structuredClone(budget);
-  renderDetail(budget);
-  showView("detailView");
-});
-
-document.addEventListener("input", (event) => {
-  if (event.target.classList.contains("plate-input")) {
-    event.target.value = normalizePlate(event.target.value);
-  }
-});
-
-window.addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  installButton.hidden = false;
-});
-
-installButton.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) return;
-  installButton.hidden = true;
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
-});
-
-window.addEventListener("appinstalled", () => {
-  installButton.hidden = true;
-  deferredInstallPrompt = null;
-});
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  installButton.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installButton.hidden = true;
   });
 }
 
+initEvents();
 renderHome();
-showView("homeView");
+checkApprovalFromUrl();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+}

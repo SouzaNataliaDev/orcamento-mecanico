@@ -1,149 +1,142 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#116a5b" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Orcamento Mecanico" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="description" content="Crie orcamentos de oficina em menos de 1 minuto." />
-    <title>Orcamento Mecanico</title>
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="app">
-      <header class="app-header">
-        <button class="icon-button" id="menuButton" type="button" aria-label="Abrir menu">☰</button>
-        <div>
-          <p class="eyebrow">Oficina</p>
-          <h1 id="screenTitle">Orcamentos</h1>
-        </div>
-        <button class="icon-button" id="searchButton" type="button" aria-label="Pesquisar">⌕</button>
-      </header>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Oficina - Orçamentos</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <button id="menuButton" class="icon-button" aria-label="Abrir menu">☰</button>
+      <div>
+        <p class="eyebrow">Oficina</p>
+        <h1 id="screenTitle">Orçamentos</h1>
+      </div>
+      <button id="searchButton" class="icon-button" aria-label="Pesquisar">⌕</button>
+    </header>
 
-      <section class="search-panel" id="searchPanel" hidden>
-        <label>
-          Buscar por cliente, O.S ou placa
-          <input id="searchInput" type="search" inputmode="search" placeholder="Ex: Joao, 12 ou ABC1D23" />
-        </label>
+    <section id="searchPanel" class="search-panel" hidden>
+      <label>
+        Buscar por cliente, O.S, placa ou status
+        <input id="searchInput" type="search" placeholder="Digite para buscar..." />
+      </label>
+    </section>
+
+    <main class="screen">
+      <section id="homeView" class="view active">
+        <div class="summary-band">
+          <strong id="budgetCount">0</strong>
+          <span>orçamentos salvos</span>
+          <button id="installButton" class="secondary-button install-button" hidden>Instalar app</button>
+        </div>
+
+        <div id="budgetList" class="budget-list"></div>
+
+        <div id="emptyState" class="empty-state">
+          <strong>Nenhum orçamento ainda</strong>
+          <span>Toque no + para criar o primeiro.</span>
+        </div>
       </section>
 
-      <main class="screen">
-        <section class="view active" id="homeView" aria-label="Lista de orcamentos">
-          <div class="summary-band">
-            <strong id="budgetCount">0</strong>
-            <span>orcamentos salvos</span>
-            <button class="secondary-button install-button" type="button" id="installButton" hidden>Instalar app</button>
+      <section id="plateView" class="view">
+        <div class="step-card camera-card">
+          <p class="step-label">Passo 1 de 4</p>
+          <h2>Ler placa</h2>
+          <div class="camera-box">
+            <video id="cameraPreview" autoplay playsinline></video>
+            <div class="plate-frame">ABC1D23</div>
           </div>
-          <a class="demo-link" href="demo_oficina_orcamento_placa/index.html">Ver demo de placa (estilo)</a>
-          <div class="budget-list" id="budgetList"></div>
-          <div class="empty-state" id="emptyState">
-            <strong>Nenhum orcamento ainda</strong>
-            <span>Toque no + para criar o primeiro.</span>
+          <p id="cameraStatus" class="status-text">Abrindo câmera traseira...</p>
+          <div class="button-row">
+            <button id="manualPlateButton" class="secondary-button">Manual</button>
+            <button id="capturePlateButton" class="primary-button">Capturar placa</button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="view" id="plateView" aria-label="Leitura de placa">
-          <div class="step-card camera-card">
-            <p class="step-label">Passo 1 de 4</p>
-            <h2>Ler placa</h2>
-            <div class="camera-box">
-              <video id="cameraPreview" autoplay muted playsinline></video>
-              <div class="plate-frame">ABC1D23</div>
-            </div>
-            <p class="status-text" id="cameraStatus">Abrindo camera traseira...</p>
-            <div class="button-row">
-              <button class="secondary-button" type="button" id="manualPlateButton">Manual</button>
-              <button class="primary-button" type="button" id="capturePlateButton">Capturar placa</button>
-            </div>
+      <section id="manualPlateView" class="view">
+        <div class="step-card">
+          <p class="step-label">Passo 1 de 4</p>
+          <h2>Digite a placa</h2>
+          <label class="big-label">
+            Placa
+            <input id="manualPlateInput" class="big-input plate-input" maxlength="7" placeholder="ABC1D23" />
+          </label>
+          <div class="button-row">
+            <button id="backToCameraButton" class="secondary-button">Voltar</button>
+            <button id="confirmManualPlateButton" class="primary-button">Continuar</button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="view" id="manualPlateView" aria-label="Digitar placa manualmente">
-          <div class="step-card">
-            <p class="step-label">Passo 1 de 4</p>
-            <h2>Digite a placa</h2>
-            <label class="big-label">
-              Placa
-              <input id="manualPlateInput" class="big-input plate-input" maxlength="7" placeholder="ABC1D23" />
-            </label>
-            <div class="button-row">
-              <button class="secondary-button" type="button" data-back="plateView">Voltar</button>
-              <button class="primary-button" type="button" id="confirmManualPlateButton">Continuar</button>
-            </div>
+      <section id="vehicleView" class="view">
+        <div class="step-card">
+          <p class="step-label">Passo 2 de 4</p>
+          <h2>Confirmar veículo</h2>
+          <div class="form-stack">
+            <label>Placa <input id="vehiclePlate" class="plate-input" /></label>
+            <label>Modelo <input id="vehicleModel" /></label>
+            <label>Ano <input id="vehicleYear" /></label>
+            <label>Cor <input id="vehicleColor" /></label>
           </div>
-        </section>
-
-        <section class="view" id="vehicleView" aria-label="Confirmar veiculo">
-          <div class="step-card">
-            <p class="step-label">Passo 2 de 4</p>
-            <h2>Confirmar veiculo</h2>
-            <div class="form-stack">
-              <label>Placa <input id="vehiclePlate" class="plate-input" /></label>
-              <label>Modelo <input id="vehicleModel" /></label>
-              <label>Ano <input id="vehicleYear" inputmode="numeric" /></label>
-              <label>Cor <input id="vehicleColor" /></label>
-            </div>
-            <div class="button-row">
-              <button class="secondary-button" type="button" data-back="manualPlateView">Voltar</button>
-              <button class="primary-button" type="button" id="vehicleContinueButton">Continuar</button>
-            </div>
+          <div class="button-row">
+            <button id="backVehicleButton" class="secondary-button">Voltar</button>
+            <button id="confirmVehicleButton" class="primary-button">Continuar</button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="view" id="clientView" aria-label="Dados do cliente">
-          <div class="step-card">
-            <p class="step-label" id="clientStepLabel">Passo 3 de 4</p>
-            <h2 id="clientStepTitle">Nome do cliente</h2>
-            <label class="big-label">
-              <span id="clientFieldLabel">Nome</span>
-              <input id="clientStepInput" class="big-input" autocomplete="off" />
-            </label>
-            <div class="button-row">
-              <button class="secondary-button" type="button" id="clientBackButton">Voltar</button>
-              <button class="primary-button" type="button" id="clientNextButton">Proximo</button>
-            </div>
+      <section id="clientView" class="view">
+        <div class="step-card">
+          <p id="clientStepLabel" class="step-label">Passo 3 de 4</p>
+          <h2 id="clientStepTitle">Nome do cliente</h2>
+          <label id="clientFieldLabel" class="big-label">
+            Nome
+            <input id="clientStepInput" class="big-input" />
+          </label>
+          <div class="button-row">
+            <button id="clientBackButton" class="secondary-button">Voltar</button>
+            <button id="clientNextButton" class="primary-button">Próximo</button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="view" id="budgetTextView" aria-label="Orcamento por texto">
-          <div class="step-card wide-card">
-            <p class="step-label">Passo 4 de 4</p>
-            <h2>Diga o orcamento e valor</h2>
-            <textarea id="budgetTextInput" class="budget-text" rows="8" placeholder="alinhamento e balanceamento - 30 reais&#10;troca de 2 pneus dianteiros - 60 reais&#10;mao de obra - 130&#10;aplica desconto de 10%"></textarea>
-            <div class="parsed-preview" id="parsedPreview"></div>
-            <div class="button-row">
-              <button class="secondary-button" type="button" data-back="clientView">Voltar</button>
-              <button class="primary-button" type="button" id="finishBudgetButton">Gerar orcamento</button>
-            </div>
+      <section id="budgetTextView" class="view">
+        <div class="step-card wide-card">
+          <p class="step-label">Passo 4 de 4</p>
+          <h2>Diga o orçamento e valor</h2>
+          <textarea id="budgetTextInput" class="budget-text" placeholder="alinhamento e balanceamento - 30 reais&#10;troca de 2 pneus dianteiros - 60 reais&#10;mão de obra - 130&#10;aplica desconto de 10%"></textarea>
+          <div id="parsedPreview" class="parsed-preview"></div>
+          <div class="button-row">
+            <button id="backBudgetTextButton" class="secondary-button">Voltar</button>
+            <button id="finishBudgetButton" class="primary-button">Salvar orçamento</button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="view" id="detailView" aria-label="Resumo do orcamento">
-          <div class="detail-card" id="detailCard"></div>
-        </section>
-      </main>
+      <section id="detailView" class="view">
+        <div id="detailCard" class="detail-card"></div>
+      </section>
+    </main>
 
-      <button class="fab" id="newBudgetButton" type="button" aria-label="Novo orcamento">+</button>
-    </div>
+    <button id="newBudgetButton" class="fab" aria-label="Novo orçamento">+</button>
 
-    <aside class="drawer" id="drawer" aria-label="Menu lateral" aria-hidden="true">
+    <aside id="drawer" class="drawer" aria-hidden="true">
       <div class="drawer-header">
         <strong>Menu</strong>
-        <button class="icon-button" id="closeMenuButton" type="button" aria-label="Fechar menu">×</button>
+        <button id="closeMenuButton" class="icon-button" aria-label="Fechar menu">×</button>
       </div>
-      <button type="button">Configuracoes</button>
-      <button type="button">Dados da oficina</button>
-      <button type="button">Modelo do PDF</button>
-      <button type="button">Deslogar</button>
+      <button>Configurações</button>
+      <button>Dados da oficina</button>
+      <button>Modelo do PDF</button>
+      <button>Deslogar</button>
     </aside>
-    <div class="overlay" id="overlay" hidden></div>
+    <div id="overlay" class="overlay" hidden></div>
+  </div>
 
-    <script src="script.js"></script>
-  </body>
+  <script src="script.js"></script>
+</body>
 </html>
