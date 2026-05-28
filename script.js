@@ -3,9 +3,10 @@ const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
 const DRAFT_KEY = "oficina_rascunho_atual_v1";
 
 const OFFICE = {
-  nome: "Oficina Modelo",
-  telefone: "(11) 99999-0000",
-  endereco: "Rua da Oficina, 123",
+  nome: "AMMAR OFICINA MECÂNICA",
+  telefone: "11 4826-7771 / 95061-9971",
+  endereco: "Rua Caravelas, 33 - Vila Ferreira - Itaquaquecetuba - SP",
+  email: "ammar.oficina@gmail.com",
 };
 
 const views = [...document.querySelectorAll(".view")];
@@ -344,6 +345,61 @@ function saveClientStep() {
   return true;
 }
 
+
+function guessItemType(description) {
+  const text = String(description || "").toLowerCase();
+
+  if (/^(pe[cç]a|pe[cç]as|produto|produtos)\s*:/i.test(description)) return "peca";
+  if (/^(servi[cç]o|servi[cç]os|m[aã]o de obra)\s*:/i.test(description)) return "servico";
+
+  const partWords = [
+    "pneu", "pastilha", "disco", "filtro", "oleo", "óleo", "vela", "bateria",
+    "correia", "amortecedor", "bucha", "terminal", "radiador", "sensor",
+    "lâmpada", "lampada", "palheta", "embreagem", "junta", "mangueira"
+  ];
+
+  const serviceWords = [
+    "troca", "mão de obra", "mao de obra", "alinhamento", "balanceamento",
+    "revisão", "revisao", "instalação", "instalacao", "serviço", "servico",
+    "diagnóstico", "diagnostico", "limpeza", "regulagem", "retífica", "retifica"
+  ];
+
+  if (partWords.some((word) => text.includes(word)) && !serviceWords.some((word) => text.includes(word))) {
+    return "peca";
+  }
+
+  return "servico";
+}
+
+function cleanItemDescription(description) {
+  return String(description || "")
+    .replace(/^(pe[cç]a|pe[cç]as|produto|produtos|servi[cç]o|servi[cç]os)\s*:/i, "")
+    .trim();
+}
+
+function extractQuantityAndDescription(description) {
+  let clean = cleanItemDescription(description);
+  let qtd = 1;
+
+  const startQty = clean.match(/^(\d+(?:[,.]\d+)?)\s+(.+)$/);
+  if (startQty) {
+    qtd = Number(startQty[1].replace(",", ".")) || 1;
+    clean = startQty[2].trim();
+  }
+
+  return { qtd, descricao: clean };
+}
+
+function getBudgetServices(budget) {
+  if (Array.isArray(budget.servicos) && budget.servicos.length) return budget.servicos;
+  return (budget.itens || []).filter((item) => item.tipo !== "peca");
+}
+
+function getBudgetParts(budget) {
+  if (Array.isArray(budget.pecas) && budget.pecas.length) return budget.pecas;
+  return (budget.itens || []).filter((item) => item.tipo === "peca");
+}
+
 function parseBudgetText(text) {
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
   const items = [];
@@ -369,17 +425,31 @@ function parseBudgetText(text) {
     if (!valueMatch) return;
 
     const value = Number(valueMatch[1].replace(",", ".")) || 0;
-    const description = line.replace(valueMatch[0], "").replace(/\s*-\s*$/, "").trim();
+    const rawDescription = line.replace(valueMatch[0], "").replace(/\s*-\s*$/, "").trim();
 
-    if (description && value > 0) items.push({ descricao: description, valor: value });
+    if (rawDescription && value > 0) {
+      const tipo = guessItemType(rawDescription);
+      const { qtd, descricao } = extractQuantityAndDescription(rawDescription);
+      const valorUnitario = qtd > 0 ? value / qtd : value;
+
+      items.push({
+        tipo,
+        qtd,
+        descricao,
+        valorUnitario,
+        valor: value
+      });
+    }
   });
 
+  const servicos = items.filter((item) => item.tipo === "servico");
+  const pecas = items.filter((item) => item.tipo === "peca");
   const subtotal = items.reduce((sum, item) => sum + item.valor, 0);
   const percentDiscountValue = subtotal * (discountPercent / 100);
   const desconto = Math.min(percentDiscountValue + discountValue, subtotal);
   const total = Math.max(subtotal - desconto, 0);
 
-  return { items, discountPercent, discountValue, subtotal, desconto, total };
+  return { items, servicos, pecas, discountPercent, discountValue, subtotal, desconto, total };
 }
 
 function discountLabel(percent, value) {
@@ -393,7 +463,7 @@ function renderParsedPreview() {
   const parsed = parseBudgetText(budgetTextInput.value);
   parsedPreview.innerHTML = `
     ${parsed.items.map((item) => `
-      <div class="parsed-line"><span>${escapeHtml(item.descricao)}</span><strong>${money(item.valor)}</strong></div>
+      <div class="parsed-line"><span>${item.tipo === "peca" ? "Peça" : "Serviço"} • ${escapeHtml(item.descricao)}</span><strong>${money(item.valor)}</strong></div>
     `).join("") || "<p>Nenhum item identificado ainda.</p>"}
     <div class="parsed-line"><span>Subtotal</span><strong>${money(parsed.subtotal)}</strong></div>
     <div class="parsed-line"><span>${discountLabel(parsed.discountPercent, parsed.discountValue)}</span><strong>${money(parsed.desconto)}</strong></div>
@@ -415,6 +485,8 @@ function finishBudget() {
   draft.textoOriginal = "";
 
   draft.itens = parsed.items;
+  draft.servicos = parsed.servicos;
+  draft.pecas = parsed.pecas;
   draft.descontoPercentual = parsed.discountPercent;
   draft.descontoValor = parsed.discountValue;
   draft.subtotal = parsed.subtotal;
@@ -681,102 +753,325 @@ function shareEmail(budget) {
 }
 
 function generatePdf(budget) {
-  const rows = budget.itens.map((item) => `
-    <tr>
-      <td>${escapeHtml(item.descricao).toUpperCase()}</td>
-      <td>${money(item.valor)}</td>
-    </tr>
-  `).join("");
+  const services = getBudgetServices(budget);
+  const parts = getBudgetParts(budget);
+  const serviceTotal = services.reduce((sum, item) => sum + Number(item.valor || 0), 0);
+  const partTotal = parts.reduce((sum, item) => sum + Number(item.valor || 0), 0);
+  const acceptLink = buildApprovalLink(budget.os, "aprovar");
+  const rejectLink = buildApprovalLink(budget.os, "reprovar");
 
-  const photos = (budget.anexos || [])
-    .filter((file) => file.type.startsWith("image/"))
-    .slice(0, 6)
-    .map((file) => `<img src="${file.dataUrl}" alt="${escapeHtml(file.name)}" />`)
-    .join("");
+  const serviceRows = buildAmmarRows(services, 8);
+  const partRows = buildAmmarRows(parts, 8);
 
   const printWindow = window.open("", "_blank", "noopener");
+
   printWindow.document.write(`
     <!doctype html>
-    <html>
+    <html lang="pt-BR">
     <head>
-      <title>OS ${budget.os}</title>
+      <meta charset="utf-8" />
+      <title>O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 28px; color: #111; }
-        h1, h2, p { margin: 0; }
-        h1 { font-size: 26px; }
-        h2 { margin-top: 22px; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
-        .top { display: flex; justify-content: space-between; gap: 20px; }
-        .box { margin-top: 12px; line-height: 1.55; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #f1f5f9; }
-        .total { font-size: 20px; font-weight: bold; margin-top: 16px; }
-        .accept { margin-top: 24px; padding: 14px; border: 2px dashed #116a5b; }
-        .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-        .photos img { width: 100%; height: 120px; object-fit: cover; border: 1px solid #ddd; }
-        a { color: #0b5146; word-break: break-all; }
-        @media print { button { display: none; } }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          padding: 20px;
+          background: #ffffff;
+          font-family: Arial, Helvetica, sans-serif;
+          color: #000;
+        }
+
+        .page {
+          width: 794px;
+          min-height: 1123px;
+          margin: 0 auto;
+          background: #fff;
+        }
+
+        .header {
+          display: grid;
+          grid-template-columns: 150px 1fr;
+          gap: 18px;
+          align-items: center;
+          background: #d9d9d9;
+          min-height: 150px;
+          padding: 16px 24px;
+          border: 2px solid #000;
+          border-bottom: none;
+        }
+
+        .logo-box {
+          width: 125px;
+          height: 105px;
+          display: grid;
+          place-items: center;
+          border: 2px solid #555;
+          background: #efefef;
+          text-align: center;
+          font-weight: 900;
+          font-size: 23px;
+          line-height: 1.05;
+        }
+
+        .header-info {
+          text-align: center;
+          font-size: 20px;
+          line-height: 1.55;
+        }
+
+        .header-info h1 {
+          margin: 0 0 8px;
+          font-size: 30px;
+          line-height: 1;
+          font-weight: 900;
+        }
+
+        .os-line {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 8px 12px;
+          border-left: 2px solid #000;
+          border-right: 2px solid #000;
+          background: #f5f5f5;
+          font-weight: 900;
+        }
+
+        .section-title {
+          background: #1d1d1d;
+          color: #fff;
+          padding: 8px 10px;
+          border-left: 2px solid #000;
+          border-right: 2px solid #000;
+          font-size: 18px;
+          font-weight: 900;
+          text-align: right;
+        }
+
+        .info-table, .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        .info-table td, .items-table th, .items-table td {
+          border: 2px solid #000;
+          padding: 7px 8px;
+          height: 31px;
+          vertical-align: middle;
+          font-size: 16px;
+        }
+
+        .info-table .label {
+          width: 190px;
+          background: #d9d9d9;
+          font-weight: 900;
+        }
+
+        .items-table th {
+          background: #d9d9d9;
+          font-weight: 900;
+          text-align: left;
+        }
+
+        .qtd-col { width: 80px; text-align: center; }
+        .desc-col { width: auto; }
+        .unit-col { width: 145px; text-align: right; }
+        .total-col { width: 145px; text-align: right; }
+
+        .totals-row td {
+          background: #eeeeee;
+          font-weight: 900;
+        }
+
+        .grand-total {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 18px;
+          margin-top: 34px;
+          font-size: 22px;
+          font-weight: 900;
+        }
+
+        .grand-total span {
+          padding: 8px 12px;
+          background: #fff200;
+          border: 2px solid #000;
+        }
+
+        .approval {
+          margin-top: 18px;
+          padding: 10px;
+          border: 2px dashed #000;
+          font-size: 13px;
+          line-height: 1.45;
+          word-break: break-all;
+        }
+
+        .attachments {
+          margin-top: 18px;
+          page-break-before: auto;
+        }
+
+        .photos {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .photos img {
+          width: 100%;
+          height: 130px;
+          object-fit: cover;
+          border: 1px solid #000;
+        }
+
+        @media print {
+          body { padding: 0; }
+          .page { width: 100%; min-height: auto; }
+        }
       </style>
     </head>
     <body>
-      <div class="top">
-        <div>
-          <h1>${escapeHtml(OFFICE.nome)}</h1>
-          <p>${escapeHtml(OFFICE.telefone)}</p>
-          <p>${escapeHtml(OFFICE.endereco)}</p>
+      <main class="page">
+        <header class="header">
+          <div class="logo-box">
+            ammar<br>
+            <small style="font-size:11px;">OFICINA MECÂNICA</small>
+          </div>
+          <div class="header-info">
+            <h1>${escapeHtml(OFFICE.nome)}</h1>
+            <div>${escapeHtml(OFFICE.endereco)}</div>
+            <div>${escapeHtml(OFFICE.telefone)}</div>
+            <div>${escapeHtml(OFFICE.email || "")}</div>
+          </div>
+        </header>
+
+        <div class="os-line">
+          <span>O.S #${budget.os}</span>
+          <span>Data: ${escapeHtml(budget.data)}</span>
+          <span>Status: ${statusLabel(budget.status)}</span>
         </div>
-        <div>
-          <h1>O.S #${budget.os}</h1>
-          <p>Data: ${escapeHtml(budget.data)}</p>
-          <p>Status: ${statusLabel(budget.status)}</p>
+
+        <div class="section-title">Dados do Cliente</div>
+        <table class="info-table">
+          <tr><td class="label">Nome</td><td>${escapeHtml(budget.cliente.nome || "")}</td></tr>
+          <tr><td class="label">Telefone</td><td>${escapeHtml(budget.cliente.telefone || "")}</td></tr>
+          <tr><td class="label">E-mail</td><td>${escapeHtml(budget.cliente.email || "")}</td></tr>
+        </table>
+
+        <div class="section-title">Dados do Veículo</div>
+        <table class="info-table">
+          <tr><td class="label">Marca</td><td>${escapeHtml(getVehicleBrand(budget.veiculo.modelo))}</td></tr>
+          <tr><td class="label">Modelo</td><td>${escapeHtml(budget.veiculo.modelo || "")}</td></tr>
+          <tr><td class="label">Ano</td><td>${escapeHtml(budget.veiculo.ano || "")}</td></tr>
+          <tr><td class="label">Placa</td><td>${escapeHtml(budget.veiculo.placa || "")}</td></tr>
+          <tr><td class="label">Quilometragem</td><td>${escapeHtml(budget.veiculo.km || "")}</td></tr>
+        </table>
+
+        <div class="section-title">Tabela de Serviços</div>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th class="qtd-col">Qtd</th>
+              <th class="desc-col">Descrição do Serviço</th>
+              <th class="unit-col">Valor Unitário</th>
+              <th class="total-col">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${serviceRows}
+            <tr class="totals-row">
+              <td colspan="3">Total</td>
+              <td class="total-col">${money(serviceTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="section-title">Tabela de Peças</div>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th class="qtd-col">Qtd</th>
+              <th class="desc-col">Descrição da Peça</th>
+              <th class="unit-col">Valor Unitário</th>
+              <th class="total-col">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${partRows}
+            <tr class="totals-row">
+              <td colspan="3">Total</td>
+              <td class="total-col">${money(partTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="grand-total">
+          <span>SOMA TOTAL: ${money(budget.total)}</span>
         </div>
-      </div>
 
-      <h2>Cliente</h2>
-      <div class="box">
-        <p>${escapeHtml(budget.cliente.nome)}</p>
-        <p>${escapeHtml(budget.cliente.telefone)}</p>
-        <p>${escapeHtml(budget.cliente.email || "Email não informado")}</p>
-      </div>
+        <div class="approval">
+          <strong>Link de aceite do orçamento</strong><br>
+          Aprovar: ${escapeHtml(acceptLink)}<br>
+          Reprovar: ${escapeHtml(rejectLink)}
+        </div>
 
-      <h2>Veículo</h2>
-      <div class="box">
-        <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
-        <p>${escapeHtml(budget.veiculo.ano)} - ${escapeHtml(budget.veiculo.cor)}</p>
-        <p>KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</p>
-      </div>
-
-      <h2>Itens</h2>
-      <table>
-        <thead><tr><th>Item</th><th>Valor</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-
-      <div class="box">
-        <p>Subtotal: ${money(budget.subtotal)}</p>
-        <p>${discountLabel(budget.descontoPercentual, budget.descontoValor)}: ${money(budget.desconto)}</p>
-        <p class="total">Valor final: ${money(budget.total)}</p>
-      </div>
-
-      <div class="accept">
-        <h2>Link de aceite</h2>
-        <p><strong>Aprovar orçamento:</strong></p>
-        <p><a href="${buildApprovalLink(budget.os, "aprovar")}">${buildApprovalLink(budget.os, "aprovar")}</a></p>
-        <p><strong>Reprovar orçamento:</strong></p>
-        <p><a href="${buildApprovalLink(budget.os, "reprovar")}">${buildApprovalLink(budget.os, "reprovar")}</a></p>
-      </div>
-
-      ${photos ? `<h2>Fotos da O.S</h2><div class="photos">${photos}</div>` : ""}
+        ${buildPhotoPrintSection(budget)}
+      </main>
 
       <script>
         window.onload = function() {
-          window.print();
+          setTimeout(function() {
+            window.print();
+          }, 300);
         };
       <\/script>
     </body>
     </html>
   `);
+
   printWindow.document.close();
+}
+
+function buildAmmarRows(items, minRows = 8) {
+  const rows = [...items];
+  while (rows.length < minRows) {
+    rows.push({ qtd: "", descricao: "", valorUnitario: "", valor: "" });
+  }
+
+  return rows.map((item) => `
+    <tr>
+      <td class="qtd-col">${escapeHtml(item.qtd || "")}</td>
+      <td class="desc-col">${escapeHtml(item.descricao || "")}</td>
+      <td class="unit-col">${item.valorUnitario ? money(item.valorUnitario) : ""}</td>
+      <td class="total-col">${item.valor ? money(item.valor) : ""}</td>
+    </tr>
+  `).join("");
+}
+
+function getVehicleBrand(model) {
+  const first = String(model || "").trim().split(" ")[0];
+  return first || "";
+}
+
+function buildPhotoPrintSection(budget) {
+  const photos = (budget.anexos || [])
+    .filter((file) => file.type && file.type.startsWith("image/"))
+    .slice(0, 6);
+
+  if (!photos.length) return "";
+
+  return `
+    <section class="attachments">
+      <div class="section-title">Fotos da O.S</div>
+      <div class="photos">
+        ${photos.map((file) => `<img src="${file.dataUrl}" alt="${escapeHtml(file.name)}" />`).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function openDrawer() {
