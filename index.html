@@ -15,7 +15,10 @@
         <p class="eyebrow">Oficina</p>
         <h1 id="screenTitle">Orçamentos</h1>
       </div>
-      <button id="searchButton" class="icon-button" aria-label="Pesquisar">⌕</button>
+      <div class="header-actions">
+        <button id="homeButtonTop" class="icon-button" aria-label="Voltar para início">⌂</button>
+        <button id="searchButton" class="icon-button" aria-label="Pesquisar">⌕</button>
+      </div>
     </header>
 
     <section id="searchPanel" class="search-panel" hidden>
@@ -89,9 +92,24 @@
         </div>
       </section>
 
+      <section id="kmView" class="view">
+        <div class="step-card">
+          <p class="step-label">Passo 3 de 5</p>
+          <h2>KM atual</h2>
+          <label class="big-label">
+            Quilometragem do veículo
+            <input id="vehicleKm" class="big-input" inputmode="numeric" placeholder="Ex: 85000" />
+          </label>
+          <div class="button-row">
+            <button id="backKmButton" class="secondary-button">Voltar</button>
+            <button id="confirmKmButton" class="primary-button">Continuar</button>
+          </div>
+        </div>
+      </section>
+
       <section id="clientView" class="view">
         <div class="step-card">
-          <p id="clientStepLabel" class="step-label">Passo 3 de 4</p>
+          <p id="clientStepLabel" class="step-label">Passo 4 de 5</p>
           <h2 id="clientStepTitle">Nome do cliente</h2>
           <label id="clientFieldLabel" class="big-label">
             Nome
@@ -106,7 +124,7 @@
 
       <section id="budgetTextView" class="view">
         <div class="step-card wide-card">
-          <p class="step-label">Passo 4 de 4</p>
+          <p class="step-label">Passo 5 de 5</p>
           <h2>Diga o orçamento e valor</h2>
           <textarea id="budgetTextInput" class="budget-text" placeholder="alinhamento e balanceamento - 30 reais&#10;troca de 2 pneus dianteiros - 60 reais&#10;mão de obra - 130&#10;aplica desconto de 10%"></textarea>
           <div id="parsedPreview" class="parsed-preview"></div>

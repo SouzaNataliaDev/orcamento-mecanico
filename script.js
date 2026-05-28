@@ -1,5 +1,6 @@
 const STORAGE_KEY = "oficina_orcamentos_v3";
 const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
+const DRAFT_KEY = "oficina_rascunho_atual_v1";
 
 const OFFICE = {
   nome: "Oficina Modelo",
@@ -14,6 +15,7 @@ const emptyState = document.querySelector("#emptyState");
 const budgetCount = document.querySelector("#budgetCount");
 const newBudgetButton = document.querySelector("#newBudgetButton");
 const searchButton = document.querySelector("#searchButton");
+const homeButtonTop = document.querySelector("#homeButtonTop");
 const searchPanel = document.querySelector("#searchPanel");
 const searchInput = document.querySelector("#searchInput");
 const menuButton = document.querySelector("#menuButton");
@@ -79,7 +81,7 @@ function createDraft() {
     atualizadoEm: nowIso(),
     status: "pendente",
     cliente: { nome: "", telefone: "", email: "" },
-    veiculo: { placa: "", modelo: "", ano: "", cor: "" },
+    veiculo: { placa: "", modelo: "", ano: "", cor: "", km: "" },
     itens: [],
     descontoPercentual: 0,
     descontoValor: 0,
@@ -168,6 +170,7 @@ function showView(id) {
     plateView: "Ler placa",
     manualPlateView: "Placa",
     vehicleView: "Veículo",
+    kmView: "KM",
     clientView: "Cliente",
     budgetTextView: "Orçamento",
     detailView: "Resumo",
@@ -191,9 +194,9 @@ function renderHome() {
     .map((budget) => `
       <button class="budget-card" data-os="${budget.os}">
         <span>
-          <strong>O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</strong>
+          <strong>${budget.status === "rascunho" ? "RASCUNHO - " : ""}O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</strong>
           <span>Data: ${escapeHtml(budget.data)} • Placa: ${escapeHtml(budget.veiculo.placa || "Sem placa")}</span>
-          <span>${escapeHtml(budget.veiculo.modelo || "Veículo não informado")}</span>
+          <span>${escapeHtml(budget.veiculo.modelo || "Veículo não informado")} • KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</span>
           <span class="status-pill status-${budget.status}">${statusLabel(budget.status)}</span>
         </span>
         <span class="budget-total">${money(budget.total)}</span>
@@ -205,8 +208,12 @@ function renderHome() {
     button.addEventListener("click", () => {
       const budget = budgets.find((item) => String(item.os) === String(button.dataset.os));
       if (budget) {
-        renderDetail(budget);
-        showView("detailView");
+        if (budget.status === "rascunho") {
+          resumeDraft(budget);
+        } else {
+          renderDetail(budget);
+          showView("detailView");
+        }
       }
     });
   });
@@ -214,6 +221,7 @@ function renderHome() {
 
 function statusLabel(status) {
   const labels = {
+    rascunho: "Rascunho",
     pendente: "Pendente de aceite",
     aprovado: "Aprovado - pode iniciar",
     reprovado: "Reprovado",
@@ -232,6 +240,7 @@ function escapeHtml(value) {
 
 async function startNewBudget() {
   draft = createDraft();
+  localStorage.removeItem(DRAFT_KEY);
   currentClientStep = 0;
   budgetTextInput.value = "";
   parsedPreview.innerHTML = "";
@@ -285,7 +294,8 @@ async function handlePlate(plate) {
 async function consultarDadosVeiculo(placa) {
   await new Promise((resolve) => setTimeout(resolve, 250));
   if (vehicleMemory[placa]) return { ...vehicleMemory[placa] };
-  return vehicleMock[placa] || { placa, modelo: "Modelo não encontrado", ano: "", cor: "" };
+  const found = vehicleMock[placa] || { placa, modelo: "Modelo não encontrado", ano: "", cor: "" };
+  return { ...found, km: found.km || "" };
 }
 
 function fillVehicleForm() {
@@ -301,13 +311,14 @@ function readVehicleForm() {
     modelo: document.querySelector("#vehicleModel").value.trim(),
     ano: document.querySelector("#vehicleYear").value.trim(),
     cor: document.querySelector("#vehicleColor").value.trim(),
+    km: draft.veiculo.km || "",
   };
 }
 
 function renderClientStep() {
   const step = clientSteps[currentClientStep];
   const input = document.querySelector("#clientStepInput");
-  document.querySelector("#clientStepLabel").textContent = `Passo 3 de 4 - ${currentClientStep + 1}/3`;
+  document.querySelector("#clientStepLabel").textContent = `Passo 4 de 5 - ${currentClientStep + 1}/3`;
   document.querySelector("#clientStepTitle").textContent = step.title;
   document.querySelector("#clientFieldLabel").firstChild.textContent = step.label;
   input.type = step.type;
@@ -398,6 +409,11 @@ function finishBudget() {
     return;
   }
 
+  draft.status = draft.status === "rascunho" ? "pendente" : (draft.status || "pendente");
+  draft.rascunhoEtapa = "";
+  draft.rascunhoClienteStep = 0;
+  draft.textoOriginal = "";
+
   draft.itens = parsed.items;
   draft.descontoPercentual = parsed.discountPercent;
   draft.descontoValor = parsed.discountValue;
@@ -413,6 +429,7 @@ function finishBudget() {
     budgets.unshift(structuredClone(draft));
   }
 
+  localStorage.removeItem(DRAFT_KEY);
   saveBudgets();
   renderHome();
   renderDetail(draft);
@@ -453,6 +470,7 @@ function renderDetail(budget) {
       <h3>Veículo</h3>
       <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
       <p>${escapeHtml(budget.veiculo.ano || "Ano não informado")} - ${escapeHtml(budget.veiculo.cor || "Cor não informada")}</p>
+      <p>KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</p>
     </div>
 
     <div class="detail-section">
@@ -569,6 +587,7 @@ function editBudget(os) {
   currentClientStep = 0;
 
   fillVehicleForm();
+  document.querySelector("#vehicleKm").value = budget.veiculo.km || "";
   budgetTextInput.value = budget.itens.map((item) => `${item.descricao} - ${String(item.valor).replace(".", ",")} reais`).join("\n");
 
   if (budget.descontoPercentual) {
@@ -631,6 +650,7 @@ Data: ${budget.data}
 Status: ${statusLabel(budget.status)}
 
 Veículo: ${budget.veiculo.placa} - ${budget.veiculo.modelo}
+KM: ${budget.veiculo.km || "Não informado"}
 
 ${budget.itens.map((item) => `- ${item.descricao}: ${money(item.valor)}`).join("\n")}
 
@@ -723,6 +743,7 @@ function generatePdf(budget) {
       <div class="box">
         <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
         <p>${escapeHtml(budget.veiculo.ano)} - ${escapeHtml(budget.veiculo.cor)}</p>
+        <p>KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</p>
       </div>
 
       <h2>Itens</h2>
@@ -770,8 +791,122 @@ function closeDrawer() {
   overlay.hidden = true;
 }
 
+
+function saveCurrentDraft(reason = "home") {
+  const activeView = document.querySelector(".view.active")?.id;
+
+  const isCreating = ["plateView", "manualPlateView", "vehicleView", "kmView", "clientView", "budgetTextView"].includes(activeView);
+
+  if (!isCreating) return false;
+
+  if (activeView === "manualPlateView") {
+    const placaDigitada = normalizePlate(document.querySelector("#manualPlateInput")?.value);
+    if (placaDigitada) draft.veiculo.placa = placaDigitada;
+  }
+
+  if (activeView === "vehicleView") {
+    readVehicleForm();
+  }
+
+  if (activeView === "kmView") {
+    draft.veiculo.km = document.querySelector("#vehicleKm")?.value.trim() || "";
+  }
+
+  if (activeView === "clientView") {
+    const step = clientSteps[currentClientStep];
+    const input = document.querySelector("#clientStepInput");
+    if (step && input) draft.cliente[step.key] = input.value.trim();
+  }
+
+  if (activeView === "budgetTextView") {
+    const parsed = parseBudgetText(budgetTextInput.value);
+    draft.status = draft.status === "rascunho" ? "pendente" : (draft.status || "pendente");
+  draft.rascunhoEtapa = "";
+  draft.rascunhoClienteStep = 0;
+  draft.textoOriginal = "";
+
+  draft.itens = parsed.items;
+    draft.descontoPercentual = parsed.discountPercent;
+    draft.descontoValor = parsed.discountValue;
+    draft.subtotal = parsed.subtotal;
+    draft.desconto = parsed.desconto;
+    draft.total = parsed.total;
+    draft.textoOriginal = budgetTextInput.value;
+  }
+
+  draft.status = "rascunho";
+  draft.rascunhoEtapa = activeView;
+  draft.rascunhoClienteStep = currentClientStep;
+  draft.atualizadoEm = nowIso();
+
+  const existingIndex = budgets.findIndex((budget) => budget.os === draft.os);
+  if (existingIndex >= 0) {
+    budgets[existingIndex] = structuredClone(draft);
+  } else {
+    budgets.unshift(structuredClone(draft));
+  }
+
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  saveBudgets();
+  renderHome();
+  return true;
+}
+
+function goHomeWithDraft() {
+  const saved = saveCurrentDraft("home");
+  stopCamera();
+  showView("homeView");
+
+  if (saved) {
+    setTimeout(() => {
+      alert("Rascunho salvo. Você pode continuar depois pela timeline.");
+    }, 100);
+  }
+}
+
+function resumeDraft(budget) {
+  draft = structuredClone(budget);
+  currentClientStep = budget.rascunhoClienteStep || 0;
+
+  if (budget.textoOriginal) {
+    budgetTextInput.value = budget.textoOriginal;
+  } else {
+    budgetTextInput.value = (budget.itens || [])
+      .map((item) => `${item.descricao} - ${String(item.valor).replace(".", ",")} reais`)
+      .join("\n");
+  }
+
+  if (budget.rascunhoEtapa === "vehicleView") {
+    fillVehicleForm();
+    showView("vehicleView");
+    return;
+  }
+
+  if (budget.rascunhoEtapa === "kmView") {
+    document.querySelector("#vehicleKm").value = draft.veiculo.km || "";
+    showView("kmView");
+    return;
+  }
+
+  if (budget.rascunhoEtapa === "clientView") {
+    renderClientStep();
+    return;
+  }
+
+  if (budget.rascunhoEtapa === "budgetTextView") {
+    renderParsedPreview();
+    showView("budgetTextView");
+    return;
+  }
+
+  renderDetail(budget);
+  showView("detailView");
+}
+
 function initEvents() {
   newBudgetButton.addEventListener("click", startNewBudget);
+  homeButtonTop.addEventListener("click", goHomeWithDraft);
+
   searchButton.addEventListener("click", () => {
     searchPanel.hidden = !searchPanel.hidden;
     if (!searchPanel.hidden) searchInput.focus();
@@ -800,6 +935,22 @@ function initEvents() {
       return;
     }
     rememberVehicle(draft.veiculo);
+    document.querySelector("#vehicleKm").value = draft.veiculo.km || "";
+    showView("kmView");
+  });
+
+  document.querySelector("#backKmButton").addEventListener("click", () => {
+    showView("vehicleView");
+  });
+
+  document.querySelector("#confirmKmButton").addEventListener("click", () => {
+    const km = document.querySelector("#vehicleKm").value.trim();
+    if (!km) {
+      alert("Informe o KM atual do veículo.");
+      document.querySelector("#vehicleKm").focus();
+      return;
+    }
+    draft.veiculo.km = km;
     renderClientStep();
   });
 
@@ -808,7 +959,7 @@ function initEvents() {
       currentClientStep--;
       renderClientStep();
     } else {
-      showView("vehicleView");
+      showView("kmView");
     }
   });
 
