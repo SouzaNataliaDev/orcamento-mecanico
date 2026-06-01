@@ -23,7 +23,7 @@
 
     <section id="searchPanel" class="search-panel" hidden>
       <label>
-        Buscar por cliente, O.S, placa ou status
+        Buscar por cliente, O.S, placa, status ou motivo
         <input id="searchInput" type="search" placeholder="Digite para buscar..." />
       </label>
     </section>
@@ -135,6 +135,23 @@
         </div>
       </section>
 
+      <section id="officeView" class="view">
+        <div class="step-card">
+          <p class="step-label">Dados que aparecem no PDF</p>
+          <h2>Dados da oficina</h2>
+          <div class="form-stack">
+            <label>Nome da oficina <input id="officeNameInput" /></label>
+            <label>Endereço <input id="officeAddressInput" /></label>
+            <label>Telefone <input id="officePhoneInput" /></label>
+            <label>E-mail de contato <input id="officeEmailInput" type="email" /></label>
+          </div>
+          <div class="button-row">
+            <button id="cancelOfficeButton" class="secondary-button">Cancelar</button>
+            <button id="saveOfficeButton" class="primary-button">Salvar dados</button>
+          </div>
+        </div>
+      </section>
+
       <section id="detailView" class="view">
         <div id="detailCard" class="detail-card"></div>
       </section>
@@ -147,10 +164,10 @@
         <strong>Menu</strong>
         <button id="closeMenuButton" class="icon-button" aria-label="Fechar menu">×</button>
       </div>
-      <button>Configurações</button>
-      <button>Dados da oficina</button>
-      <button>Modelo do PDF</button>
-      <button>Deslogar</button>
+      <button id="drawerOfficeButton">Dados da oficina</button>
+      <button id="drawerAddressButton">Trocar endereço</button>
+      <button id="drawerPhoneButton">Alterar telefone</button>
+      <button id="drawerEmailButton">Alterar e-mail de contato</button>
     </aside>
     <div id="overlay" class="overlay" hidden></div>
   </div>

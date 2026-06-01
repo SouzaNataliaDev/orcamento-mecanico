@@ -404,3 +404,18 @@ video {
     font-size: 1.75rem;
   }
 }
+
+.motivo-pill {
+  display: inline-block;
+  margin-top: 8px;
+  margin-right: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+.motivo-revisao { background: #ecfdf5; color: #047857; }
+.motivo-manutencao { background: #eff6ff; color: #1d4ed8; }
+.motivo-sinistro { background: #fef2f2; color: #b91c1c; }

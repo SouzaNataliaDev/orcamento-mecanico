@@ -1,13 +1,16 @@
 const STORAGE_KEY = "oficina_orcamentos_v3";
 const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
 const DRAFT_KEY = "oficina_rascunho_atual_v1";
+const OFFICE_KEY = "oficina_dados_config_v1";
 
-const OFFICE = {
+const DEFAULT_OFFICE = {
   nome: "AMMAR OFICINA MECÂNICA",
   telefone: "11 4826-7771 / 95061-9971",
   endereco: "Rua Caravelas, 33 - Vila Ferreira - Itaquaquecetuba - SP",
   email: "ammar.oficina@gmail.com",
 };
+
+let OFFICE = loadOfficeConfig();
 
 const views = [...document.querySelectorAll(".view")];
 const screenTitle = document.querySelector("#screenTitle");
@@ -24,6 +27,16 @@ const closeMenuButton = document.querySelector("#closeMenuButton");
 const drawer = document.querySelector("#drawer");
 const overlay = document.querySelector("#overlay");
 const installButton = document.querySelector("#installButton");
+const drawerOfficeButton = document.querySelector("#drawerOfficeButton");
+const drawerAddressButton = document.querySelector("#drawerAddressButton");
+const drawerPhoneButton = document.querySelector("#drawerPhoneButton");
+const drawerEmailButton = document.querySelector("#drawerEmailButton");
+const officeNameInput = document.querySelector("#officeNameInput");
+const officeAddressInput = document.querySelector("#officeAddressInput");
+const officePhoneInput = document.querySelector("#officePhoneInput");
+const officeEmailInput = document.querySelector("#officeEmailInput");
+const saveOfficeButton = document.querySelector("#saveOfficeButton");
+const cancelOfficeButton = document.querySelector("#cancelOfficeButton");
 const cameraPreview = document.querySelector("#cameraPreview");
 const cameraStatus = document.querySelector("#cameraStatus");
 const budgetTextInput = document.querySelector("#budgetTextInput");
@@ -81,6 +94,7 @@ function createDraft() {
     criadoEm: nowIso(),
     atualizadoEm: nowIso(),
     status: "pendente",
+    motivo: "manutencao",
     cliente: { nome: "", telefone: "", email: "" },
     veiculo: { placa: "", modelo: "", ano: "", cor: "", km: "" },
     itens: [],
@@ -124,6 +138,7 @@ function normalizeBudget(budget) {
     criadoEm: budget.criadoEm || nowIso(),
     atualizadoEm: budget.atualizadoEm || budget.criadoEm || nowIso(),
     status: budget.status || "pendente",
+    motivo: budget.motivo || classifyBudgetReasonFromBudget(budget),
     anexos: Array.isArray(budget.anexos) ? budget.anexos : [],
     observacoes: budget.observacoes || "",
   };
@@ -175,6 +190,7 @@ function showView(id) {
     clientView: "Cliente",
     budgetTextView: "Orçamento",
     detailView: "Resumo",
+    officeView: "Dados da oficina",
   };
   screenTitle.textContent = titles[id] || "Orçamentos";
   newBudgetButton.hidden = id !== "homeView";
@@ -184,7 +200,7 @@ function showView(id) {
 function renderHome() {
   const term = searchInput.value.trim().toLowerCase();
   const filtered = budgets.filter((budget) => {
-    const text = `${budget.os} ${budget.cliente.nome} ${budget.veiculo.placa} ${budget.status} ${budget.data}`.toLowerCase();
+    const text = `${budget.os} ${budget.cliente.nome} ${budget.veiculo.placa} ${budget.status} ${budget.data} ${budget.motivo}`.toLowerCase();
     return text.includes(term);
   });
 
@@ -198,6 +214,7 @@ function renderHome() {
           <strong>${budget.status === "rascunho" ? "RASCUNHO - " : ""}O.S #${budget.os} - ${escapeHtml(budget.cliente.nome || "Cliente")}</strong>
           <span>Data: ${escapeHtml(budget.data)} • Placa: ${escapeHtml(budget.veiculo.placa || "Sem placa")}</span>
           <span>${escapeHtml(budget.veiculo.modelo || "Veículo não informado")} • KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</span>
+          <span class="motivo-pill motivo-${budget.motivo || "manutencao"}">${motivoLabel(budget.motivo)}</span>
           <span class="status-pill status-${budget.status}">${statusLabel(budget.status)}</span>
         </span>
         <span class="budget-total">${money(budget.total)}</span>
@@ -218,6 +235,90 @@ function renderHome() {
       }
     });
   });
+}
+
+function loadOfficeConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OFFICE_KEY));
+    return { ...DEFAULT_OFFICE, ...(saved || {}) };
+  } catch {
+    return { ...DEFAULT_OFFICE };
+  }
+}
+
+function saveOfficeConfig() {
+  localStorage.setItem(OFFICE_KEY, JSON.stringify(OFFICE));
+}
+
+function openOfficeForm(focusField = "name") {
+  officeNameInput.value = OFFICE.nome || "";
+  officeAddressInput.value = OFFICE.endereco || "";
+  officePhoneInput.value = OFFICE.telefone || "";
+  officeEmailInput.value = OFFICE.email || "";
+  closeDrawer();
+  showView("officeView");
+
+  const focusMap = {
+    name: officeNameInput,
+    address: officeAddressInput,
+    phone: officePhoneInput,
+    email: officeEmailInput,
+  };
+
+  setTimeout(() => (focusMap[focusField] || officeNameInput).focus(), 120);
+}
+
+function saveOfficeForm() {
+  OFFICE = {
+    nome: officeNameInput.value.trim() || DEFAULT_OFFICE.nome,
+    endereco: officeAddressInput.value.trim() || DEFAULT_OFFICE.endereco,
+    telefone: officePhoneInput.value.trim() || DEFAULT_OFFICE.telefone,
+    email: officeEmailInput.value.trim() || DEFAULT_OFFICE.email,
+  };
+  saveOfficeConfig();
+  alert("Dados da oficina salvos. Eles já sairão no próximo PDF.");
+  showView("homeView");
+}
+
+function motivoLabel(motivo) {
+  const labels = {
+    revisao: "Revisão",
+    manutencao: "Manutenção",
+    sinistro: "Sinistro",
+  };
+  return labels[motivo] || "Manutenção";
+}
+
+function classifyBudgetReasonFromBudget(budget) {
+  const itemsText = (budget.itens || []).map((item) => `${item.descricao || ""}`).join("\n");
+  return classifyBudgetReason(itemsText);
+}
+
+function classifyBudgetReason(text) {
+  const normalized = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const sinistroWords = [
+    "batida", "colisao", "sinistro", "funilaria", "pintura", "amassado",
+    "parachoque", "para-choque", "capo", "porta", "lateral", "lanternagem",
+    "martelinho", "seguradora", "farol quebrado", "lanterna quebrada"
+  ];
+
+  if (sinistroWords.some((word) => normalized.includes(word))) return "sinistro";
+
+  const lines = normalized.split("\n").map((line) => line.trim()).filter(Boolean);
+  const revisionWords = [
+    "revisao", "oleo", "filtro", "filtros", "checkup", "check-up", "preventiva",
+    "inspecao", "fluido", "vela", "palheta"
+  ];
+
+  if (lines.length && lines.every((line) => revisionWords.some((word) => line.includes(word)))) {
+    return "revisao";
+  }
+
+  return "manutencao";
 }
 
 function statusLabel(status) {
@@ -484,6 +585,7 @@ function finishBudget() {
   draft.rascunhoClienteStep = 0;
   draft.textoOriginal = "";
 
+  draft.motivo = classifyBudgetReason(budgetTextInput.value);
   draft.itens = parsed.items;
   draft.servicos = parsed.servicos;
   draft.pecas = parsed.pecas;
@@ -518,6 +620,7 @@ function renderDetail(budget) {
         <p class="step-label">Orçamento ${statusLabel(budget.status)}</p>
         <h2>O.S #${budget.os}</h2>
         <p>Data: ${escapeHtml(budget.data)}</p>
+        <p><span class="motivo-pill motivo-${budget.motivo || "manutencao"}">${motivoLabel(budget.motivo)}</span></p>
       </div>
       <strong>${money(budget.total)}</strong>
     </div>
@@ -710,7 +813,7 @@ function checkApprovalFromUrl() {
   if (ok) {
     alert(`O.S #${os} marcada como ${statusLabel(status)}.`);
   } else {
-    alert(`Não encontrei a O.S #${os} neste aparelho. Para funcionar 100%, use nuvem/Firebase.`);
+    alert(`Não encontrei a O.S #${os} neste aparelho. No modo atual, o aceite só muda status no aparelho da oficina. Para o cliente aprovar do celular dele, precisa ligar uma base em nuvem, como Firebase ou Supabase.`);
   }
 }
 
@@ -720,6 +823,7 @@ function buildMessage(budget) {
 O.S #${budget.os}
 Data: ${budget.data}
 Status: ${statusLabel(budget.status)}
+Motivo: ${motivoLabel(budget.motivo)}
 
 Veículo: ${budget.veiculo.placa} - ${budget.veiculo.modelo}
 KM: ${budget.veiculo.km || "Não informado"}
@@ -1005,7 +1109,8 @@ function buildAmmarPdfHtml(budget) {
         <div class="os-line">
           <span>O.S #${budget.os}</span>
           <span>Data: ${escapeHtml(budget.data)}</span>
-          <span>Status: ${statusLabel(budget.status)}</span>
+          <span>Status: ${statusLabel(budget.status)}
+Motivo: ${motivoLabel(budget.motivo)}</span>
         </div>
 
         <div class="section-title">Dados do Cliente</div>
@@ -1177,6 +1282,7 @@ function saveCurrentDraft(reason = "home") {
     draft.subtotal = parsed.subtotal;
     draft.desconto = parsed.desconto;
     draft.total = parsed.total;
+    draft.motivo = classifyBudgetReason(budgetTextInput.value);
     draft.textoOriginal = budgetTextInput.value;
   }
 
@@ -1262,6 +1368,12 @@ function initEvents() {
   menuButton.addEventListener("click", openDrawer);
   closeMenuButton.addEventListener("click", closeDrawer);
   overlay.addEventListener("click", closeDrawer);
+  drawerOfficeButton.addEventListener("click", () => openOfficeForm("name"));
+  drawerAddressButton.addEventListener("click", () => openOfficeForm("address"));
+  drawerPhoneButton.addEventListener("click", () => openOfficeForm("phone"));
+  drawerEmailButton.addEventListener("click", () => openOfficeForm("email"));
+  saveOfficeButton.addEventListener("click", saveOfficeForm);
+  cancelOfficeButton.addEventListener("click", () => showView("homeView"));
 
   document.querySelector("#manualPlateButton").addEventListener("click", () => {
     stopCamera();
