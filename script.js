@@ -1,6 +1,8 @@
 const STORAGE_KEY = "oficina_orcamentos_v3";
 const VEHICLE_MEMORY_KEY = "oficina_placas_salvas_v1";
 const DRAFT_KEY = "oficina_rascunho_atual_v1";
+const API_PLACAS_URL = "https://wdapi2.com.br/consulta";
+const API_PLACAS_DEFAULT_TOKEN = "98ae7b407380d15ba5a8b300e7a40b1d";
 const OFFICE_KEY = "oficina_dados_config_v1";
 
 const DEFAULT_OFFICE = {
@@ -419,18 +421,95 @@ async function handlePlate(plate) {
     alert("Digite uma placa válida. Exemplos: ABC1234 ou ABC1D23.");
     return;
   }
+
   stopCamera();
-  draft.veiculo = await consultarDadosVeiculo(cleanPlate);
-  fillVehicleForm();
-  showView("vehicleView");
+
+  try {
+    if (cameraStatus) cameraStatus.textContent = "Consultando dados da placa na API...";
+    draft.veiculo = await consultarDadosVeiculo(cleanPlate);
+    fillVehicleForm();
+    showView("vehicleView");
+  } catch (error) {
+    alert(`${error.message}\n\nVocê pode preencher os dados manualmente.`);
+    draft.veiculo = { placa: cleanPlate, marca: "", modelo: "", ano: "", cor: "", km: "" };
+    fillVehicleForm();
+    showView("vehicleView");
+  }
+}
+
+
+function getApiPlacasToken() {
+  const officeData = typeof loadOfficeData === "function" ? loadOfficeData() : {};
+  return (officeData.apiPlacasToken || OFFICE.apiPlacasToken || API_PLACAS_DEFAULT_TOKEN || "").trim();
+}
+
+function normalizeApiPlacasResponse(data, placa) {
+  const extra = data?.extra || {};
+  const fipeList = Array.isArray(data?.fipe?.dados) ? data.fipe.dados : [];
+  const bestFipe = fipeList.sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
+
+  return {
+    placa: normalizePlate(data?.placa || extra?.placa_modelo_novo || extra?.placa || placa),
+    marca: data?.marca || data?.MARCA || "",
+    modelo: data?.modelo || data?.MODELO || data?.marcaModelo || extra?.modelo || "",
+    ano: data?.anoModelo || data?.ano || extra?.ano_modelo || extra?.ano_fabricacao || "",
+    cor: data?.cor || extra?.cor || "",
+    km: "",
+    municipio: data?.municipio || extra?.municipio || "",
+    uf: data?.uf || extra?.uf || extra?.uf_placa || "",
+    tipo: extra?.tipo_veiculo || extra?.segmento || "",
+    combustivel: extra?.combustivel || bestFipe?.combustivel || "",
+    fipeValor: bestFipe?.texto_valor || "",
+    fipeCodigo: bestFipe?.codigo_fipe || "",
+    fipeModelo: bestFipe?.texto_modelo || "",
+    origemConsulta: "API Placas"
+  };
+}
+
+function apiPlacasErrorMessage(status, data) {
+  const message = data?.message || data?.mensagem || data?.mensagemRetorno || "";
+  const errors = {
+    400: "URL incorreta na consulta.",
+    401: "Placa inválida. Use ABC1234 ou ABC1D23.",
+    402: "Token inválido. Verifique em Configurações > Alterar dados oficina.",
+    406: "Sem resultados para esta placa.",
+    429: "Limite de consultas atingido."
+  };
+  return message || errors[status] || "Não foi possível consultar a placa.";
 }
 
 async function consultarDadosVeiculo(placa) {
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  if (vehicleMemory[placa]) return { ...vehicleMemory[placa] };
-  const found = vehicleMock[placa] || { placa, modelo: "Modelo não encontrado", ano: "", cor: "" };
-  return { ...found, km: found.km || "" };
+  const cleanPlate = normalizePlate(placa);
+  const token = getApiPlacasToken();
+
+  if (!token) {
+    throw new Error("Token da API Placas não configurado.");
+  }
+
+  try {
+    const response = await fetch(`${API_PLACAS_URL}/${encodeURIComponent(cleanPlate)}/${encodeURIComponent(token)}`);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.message || data?.erro) {
+      throw new Error(apiPlacasErrorMessage(response.status, data));
+    }
+
+    const vehicle = normalizeApiPlacasResponse(data, cleanPlate);
+
+    if (!vehicle.modelo && !vehicle.marca) {
+      throw new Error("A consulta retornou sem marca/modelo. Preencha manualmente.");
+    }
+
+    return vehicle;
+  } catch (error) {
+    console.error("Erro API Placas:", error);
+    if (String(error?.message || "").includes("Failed to fetch")) {
+      throw new Error("Consulta bloqueada pelo navegador/rede. Para produção, use backend/proxy seguro.");
+    }
+    throw error;
+  }
 }
+
 
 function fillVehicleForm() {
   document.querySelector("#vehiclePlate").value = draft.veiculo.placa;
@@ -678,6 +757,8 @@ function renderDetail(budget) {
       <p>${escapeHtml(budget.veiculo.placa)} - ${escapeHtml(budget.veiculo.modelo)}</p>
       <p>${escapeHtml(budget.veiculo.ano || "Ano não informado")} - ${escapeHtml(budget.veiculo.cor || "Cor não informada")}</p>
       <p>KM: ${escapeHtml(budget.veiculo.km || "Não informado")}</p>
+      ${budget.veiculo.fipeValor ? `<p>FIPE: ${escapeHtml(budget.veiculo.fipeValor)}</p>` : ""}
+      ${budget.veiculo.origemConsulta ? `<p>Origem consulta: ${escapeHtml(budget.veiculo.origemConsulta)}</p>` : ""}
     </div>
 
     <div class="detail-section">
@@ -1154,7 +1235,7 @@ Motivo: ${motivoLabel(budget.motivo)}</span>
 
         <div class="section-title">Dados do Veículo</div>
         <table class="info-table">
-          <tr><td class="label">Marca</td><td>${escapeHtml(getVehicleBrand(budget.veiculo.modelo))}</td></tr>
+          <tr><td class="label">Marca</td><td>${escapeHtml(getVehicleBrand(budget.veiculo.modelo, budget.veiculo))}</td></tr>
           <tr><td class="label">Modelo</td><td>${escapeHtml(budget.veiculo.modelo || "")}</td></tr>
           <tr><td class="label">Ano</td><td>${escapeHtml(budget.veiculo.ano || "")}</td></tr>
           <tr><td class="label">Placa</td><td>${escapeHtml(budget.veiculo.placa || "")}</td></tr>
@@ -1240,7 +1321,8 @@ function buildAmmarRows(items, minRows = 8) {
   `).join("");
 }
 
-function getVehicleBrand(model) {
+function getVehicleBrand(model, vehicle = null) {
+  if (vehicle?.marca) return vehicle.marca;
   const first = String(model || "").trim().split(" ")[0];
   return first || "";
 }
@@ -1275,11 +1357,15 @@ function openOfficeSettings() {
   const email = prompt("E-mail de contato:", current.email || OFFICE.email || "");
   if (email === null) return;
 
+  const apiPlacasToken = prompt("Token API Placas:", current.apiPlacasToken || OFFICE.apiPlacasToken || "");
+  if (apiPlacasToken === null) return;
+
   const updated = {
     nome: nome.trim() || OFFICE.nome,
     endereco: endereco.trim() || OFFICE.endereco,
     telefone: telefone.trim() || OFFICE.telefone,
     email: email.trim() || OFFICE.email || "",
+    apiPlacasToken: apiPlacasToken.trim() || OFFICE.apiPlacasToken || "",
   };
 
   localStorage.setItem("oficina_dados_v1", JSON.stringify(updated));
