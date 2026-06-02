@@ -419,3 +419,47 @@ video {
 .motivo-revisao { background: #ecfdf5; color: #047857; }
 .motivo-manutencao { background: #eff6ff; color: #1d4ed8; }
 .motivo-sinistro { background: #fef2f2; color: #b91c1c; }
+
+.drawer-main-button { font-weight: 900; }
+.drawer-submenu {
+  display: grid;
+  gap: 8px;
+  margin: -2px 0 6px 16px;
+  padding-left: 12px;
+  border-left: 4px solid var(--accent);
+}
+.drawer-submenu[hidden] { display: none; }
+.drawer-submenu button {
+  min-height: 52px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  text-align: left;
+  padding: 0 14px;
+  font-weight: 800;
+}
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.summary-card {
+  display: grid;
+  gap: 4px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 8px 22px rgba(20, 35, 48, 0.07);
+}
+.summary-card span { color: var(--muted); font-size: .88rem; font-weight: 900; }
+.summary-card strong { font-size: 1.8rem; line-height: 1; }
+.summary-card small { color: var(--text); font-weight: 900; }
+.summary-card.approved { border-color: #b7dfc4; background: #f0fbf3; }
+.summary-card.draft { border-color: #c7d2fe; background: #f4f6ff; }
+.summary-card.rejected { border-color: #f2c4bb; background: #fff5f3; }
+@media (max-width: 640px) {
+  .status-summary { grid-template-columns: 1fr; }
+  .summary-card { min-height: auto; }
+}

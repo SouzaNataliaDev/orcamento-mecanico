@@ -17,6 +17,12 @@ const screenTitle = document.querySelector("#screenTitle");
 const budgetList = document.querySelector("#budgetList");
 const emptyState = document.querySelector("#emptyState");
 const budgetCount = document.querySelector("#budgetCount");
+const approvedCount = document.querySelector("#approvedCount");
+const approvedTotal = document.querySelector("#approvedTotal");
+const draftCount = document.querySelector("#draftCount");
+const draftTotal = document.querySelector("#draftTotal");
+const rejectedCount = document.querySelector("#rejectedCount");
+const rejectedTotal = document.querySelector("#rejectedTotal");
 const newBudgetButton = document.querySelector("#newBudgetButton");
 const searchButton = document.querySelector("#searchButton");
 const homeButtonTop = document.querySelector("#homeButtonTop");
@@ -26,6 +32,10 @@ const menuButton = document.querySelector("#menuButton");
 const closeMenuButton = document.querySelector("#closeMenuButton");
 const drawer = document.querySelector("#drawer");
 const overlay = document.querySelector("#overlay");
+const drawerSettingsButton = document.querySelector("#drawerSettingsButton");
+const settingsSubmenu = document.querySelector("#settingsSubmenu");
+const drawerOfficeDataButton = document.querySelector("#drawerOfficeDataButton");
+const drawerLogoutButton = document.querySelector("#drawerLogoutButton");
 const installButton = document.querySelector("#installButton");
 const drawerOfficeButton = document.querySelector("#drawerOfficeButton");
 const drawerAddressButton = document.querySelector("#drawerAddressButton");
@@ -197,6 +207,20 @@ function showView(id) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function renderStatusSummary() {
+  const approved = budgets.filter((budget) => budget.status === "aprovado");
+  const drafts = budgets.filter((budget) => budget.status === "rascunho");
+  const rejected = budgets.filter((budget) => budget.status === "reprovado");
+  const sum = (items) => items.reduce((total, budget) => total + Number(budget.total || 0), 0);
+
+  if (approvedCount) approvedCount.textContent = approved.length;
+  if (approvedTotal) approvedTotal.textContent = money(sum(approved));
+  if (draftCount) draftCount.textContent = drafts.length;
+  if (draftTotal) draftTotal.textContent = money(sum(drafts));
+  if (rejectedCount) rejectedCount.textContent = rejected.length;
+  if (rejectedTotal) rejectedTotal.textContent = money(sum(rejected));
+}
+
 function renderHome() {
   const term = searchInput.value.trim().toLowerCase();
   const filtered = budgets.filter((budget) => {
@@ -205,7 +229,15 @@ function renderHome() {
   });
 
   budgetCount.textContent = budgets.length;
-  emptyState.hidden = filtered.length > 0;
+  renderStatusSummary();
+
+  // Corrige o bug: só mostra "nenhum orçamento ainda" se o banco estiver vazio.
+  emptyState.hidden = budgets.length > 0;
+
+  if (budgets.length > 0 && filtered.length === 0) {
+    budgetList.innerHTML = `<div class="empty-state"><strong>Nenhum orçamento encontrado para essa busca.</strong><span>Limpe a pesquisa para ver todos.</span></div>`;
+    return;
+  }
 
   budgetList.innerHTML = filtered
     .map((budget) => `
@@ -1230,6 +1262,41 @@ function buildPhotoPrintSection(budget) {
   `;
 }
 
+function openOfficeSettings() {
+  closeDrawer();
+
+  const current = loadOfficeData();
+  const nome = prompt("Nome da oficina:", current.nome || OFFICE.nome);
+  if (nome === null) return;
+  const endereco = prompt("Endereço da oficina:", current.endereco || OFFICE.endereco);
+  if (endereco === null) return;
+  const telefone = prompt("Telefone da oficina:", current.telefone || OFFICE.telefone);
+  if (telefone === null) return;
+  const email = prompt("E-mail de contato:", current.email || OFFICE.email || "");
+  if (email === null) return;
+
+  const updated = {
+    nome: nome.trim() || OFFICE.nome,
+    endereco: endereco.trim() || OFFICE.endereco,
+    telefone: telefone.trim() || OFFICE.telefone,
+    email: email.trim() || OFFICE.email || "",
+  };
+
+  localStorage.setItem("oficina_dados_v1", JSON.stringify(updated));
+  Object.assign(OFFICE, updated);
+  alert("Dados da oficina atualizados com sucesso.");
+}
+
+function loadOfficeData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("oficina_dados_v1"));
+    if (saved && typeof saved === "object") return { ...OFFICE, ...saved };
+  } catch {}
+  return { ...OFFICE };
+}
+
+Object.assign(OFFICE, loadOfficeData());
+
 function openDrawer() {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
@@ -1368,6 +1435,23 @@ function initEvents() {
   menuButton.addEventListener("click", openDrawer);
   closeMenuButton.addEventListener("click", closeDrawer);
   overlay.addEventListener("click", closeDrawer);
+
+  if (drawerSettingsButton && settingsSubmenu) {
+    drawerSettingsButton.addEventListener("click", () => {
+      settingsSubmenu.hidden = !settingsSubmenu.hidden;
+    });
+  }
+
+  if (drawerOfficeDataButton) {
+    drawerOfficeDataButton.addEventListener("click", openOfficeSettings);
+  }
+
+  if (drawerLogoutButton) {
+    drawerLogoutButton.addEventListener("click", () => {
+      closeDrawer();
+      alert("Logout ainda não foi configurado. Quando conectarmos login real, esse botão vai sair da conta.");
+    });
+  }
   drawerOfficeButton.addEventListener("click", () => openOfficeForm("name"));
   drawerAddressButton.addEventListener("click", () => openOfficeForm("address"));
   drawerPhoneButton.addEventListener("click", () => openOfficeForm("phone"));

@@ -36,6 +36,24 @@
           <button id="installButton" class="secondary-button install-button" hidden>Instalar app</button>
         </div>
 
+        <div id="statusSummary" class="status-summary">
+          <div class="summary-card approved">
+            <span>Aprovados</span>
+            <strong id="approvedCount">0</strong>
+            <small id="approvedTotal">R$ 0,00</small>
+          </div>
+          <div class="summary-card draft">
+            <span>Rascunhos</span>
+            <strong id="draftCount">0</strong>
+            <small id="draftTotal">R$ 0,00</small>
+          </div>
+          <div class="summary-card rejected">
+            <span>Reprovados</span>
+            <strong id="rejectedCount">0</strong>
+            <small id="rejectedTotal">R$ 0,00</small>
+          </div>
+        </div>
+
         <div id="budgetList" class="budget-list"></div>
 
         <div id="emptyState" class="empty-state">
@@ -164,10 +182,11 @@
         <strong>Menu</strong>
         <button id="closeMenuButton" class="icon-button" aria-label="Fechar menu">×</button>
       </div>
-      <button id="drawerOfficeButton">Dados da oficina</button>
-      <button id="drawerAddressButton">Trocar endereço</button>
-      <button id="drawerPhoneButton">Alterar telefone</button>
-      <button id="drawerEmailButton">Alterar e-mail de contato</button>
+      <button id="drawerSettingsButton" class="drawer-main-button">Configurações</button>
+      <div id="settingsSubmenu" class="drawer-submenu" hidden>
+        <button id="drawerOfficeDataButton">Alterar dados oficina</button>
+      </div>
+      <button id="drawerLogoutButton" class="drawer-main-button">Log out</button>
     </aside>
     <div id="overlay" class="overlay" hidden></div>
   </div>
