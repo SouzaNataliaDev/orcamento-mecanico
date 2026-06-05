@@ -714,6 +714,7 @@ function renderDetail(budget) {
 
     <div class="button-row">
       <button id="editButton" class="secondary-button">Alterar orçamento</button>
+      <button id="deleteBudgetButton" class="danger-button">Excluir orçamento</button>
       <button id="pdfButton" class="primary-button">Gerar PDF</button>
       <button id="whatsButton" class="secondary-button">WhatsApp</button>
       <button id="emailButton" class="secondary-button">Email</button>
@@ -724,6 +725,7 @@ function renderDetail(budget) {
   document.querySelector("#approveButton").addEventListener("click", () => updateBudgetStatus(budget.os, "aprovado"));
   document.querySelector("#rejectButton").addEventListener("click", () => updateBudgetStatus(budget.os, "reprovado"));
   document.querySelector("#editButton").addEventListener("click", () => editBudget(budget.os));
+  document.querySelector("#deleteBudgetButton").addEventListener("click", () => deleteBudget(budget.os));
   document.querySelector("#pdfButton").addEventListener("click", () => generatePdf(budget));
   document.querySelector("#whatsButton").addEventListener("click", () => shareWhatsApp(budget));
   document.querySelector("#emailButton").addEventListener("click", () => shareEmail(budget));
@@ -807,6 +809,27 @@ function editBudget(os) {
   if (budget.descontoValor) budgetTextInput.value += `\ndesconto ${String(budget.descontoValor).replace(".", ",")} reais`;
 
   renderClientStep();
+}
+
+function deleteBudget(os) {
+  const budget = budgets.find((item) => item.os === Number(os));
+
+  if (!budget) {
+    alert("Não encontrei este orçamento.");
+    return;
+  }
+
+  const cliente = budget.cliente?.nome || "Cliente";
+  const confirmar = confirm(`Tem certeza que deseja excluir a O.S #${budget.os} - ${cliente}?\n\nEssa ação não pode ser desfeita neste aparelho.`);
+
+  if (!confirmar) return;
+
+  budgets = budgets.filter((item) => item.os !== Number(os));
+  saveBudgets();
+  renderHome();
+  showView("homeView");
+
+  alert(`O.S #${budget.os} excluída com sucesso.`);
 }
 
 function updateBudgetStatus(os, status) {

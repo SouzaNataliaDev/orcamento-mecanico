@@ -354,3 +354,9 @@ video { width: 100%; height: 340px; object-fit: cover; }
   .camera-box, video { min-height: 280px; height: 280px; }
   .plate-frame { height: 92px; font-size: 1.75rem; }
 }
+
+.delete-note {
+  color: var(--danger);
+  font-size: .9rem;
+  font-weight: 800;
+}

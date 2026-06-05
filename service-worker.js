@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-mecanico-v7-api-placas-manual-fix";
+const CACHE_NAME = "orcamento-mecanico-v8-delete-budget";
 const FILES = ["./", "./index.html", "./styles.css", "./script.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
