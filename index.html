@@ -16,7 +16,7 @@
         <h1 id="screenTitle">Orçamentos</h1>
       </div>
       <div class="header-actions">
-        <button id="homeButtonTop" class="icon-button" aria-label="Voltar para início">⌂</button>
+        <button id="homeButtonTop" class="icon-button" aria-label="Início">⌂</button>
         <button id="searchButton" class="icon-button" aria-label="Pesquisar">⌕</button>
       </div>
     </header>
@@ -64,41 +64,44 @@
 
       <section id="plateView" class="view">
         <div class="step-card camera-card">
-          <p class="step-label">Passo 1 de 4</p>
+          <p class="step-label">Passo 1 de 5</p>
           <h2>Ler placa</h2>
           <div class="camera-box">
-            <video id="cameraPreview" autoplay playsinline></video>
-            <div class="plate-frame">ABC1D23</div>
+            <video id="cameraPreview" autoplay playsinline muted></video>
+            <div class="plate-frame">PLACA</div>
           </div>
           <p id="cameraStatus" class="status-text">Abrindo câmera traseira...</p>
           <div class="button-row">
             <button id="manualPlateButton" class="secondary-button">Manual</button>
-            <button id="capturePlateButton" class="primary-button">Capturar placa</button>
+            <button id="capturePlateButton" class="primary-button">Capturar</button>
           </div>
         </div>
       </section>
 
       <section id="manualPlateView" class="view">
         <div class="step-card">
-          <p class="step-label">Passo 1 de 4</p>
+          <p class="step-label">Passo 1 de 5</p>
           <h2>Digite a placa</h2>
+          <p class="status-text">Digite a placa para consultar a API Placas.</p>
           <label class="big-label">
             Placa
-            <input id="manualPlateInput" class="big-input plate-input" maxlength="7" placeholder="ABC1D23" />
+            <input id="manualPlateInput" class="big-input plate-input" maxlength="7" placeholder="ABC1D23" autocomplete="off" />
           </label>
+          <div id="plateLookupStatus" class="lookup-status" hidden></div>
           <div class="button-row">
             <button id="backToCameraButton" class="secondary-button">Voltar</button>
-            <button id="confirmManualPlateButton" class="primary-button">Continuar</button>
+            <button id="confirmManualPlateButton" class="primary-button">Consultar placa</button>
           </div>
         </div>
       </section>
 
       <section id="vehicleView" class="view">
         <div class="step-card">
-          <p class="step-label">Passo 2 de 4</p>
+          <p class="step-label">Passo 2 de 5</p>
           <h2>Confirmar veículo</h2>
           <div class="form-stack">
             <label>Placa <input id="vehiclePlate" class="plate-input" /></label>
+            <label>Marca <input id="vehicleBrand" /></label>
             <label>Modelo <input id="vehicleModel" /></label>
             <label>Ano <input id="vehicleYear" /></label>
             <label>Cor <input id="vehicleColor" /></label>
@@ -144,13 +147,17 @@
         <div class="step-card wide-card">
           <p class="step-label">Passo 5 de 5</p>
           <h2>Diga o orçamento e valor</h2>
-          <textarea id="budgetTextInput" class="budget-text" placeholder="alinhamento e balanceamento - 30 reais&#10;troca de 2 pneus dianteiros - 60 reais&#10;mão de obra - 130&#10;aplica desconto de 10%"></textarea>
+          <textarea id="budgetTextInput" class="budget-text" placeholder="serviço: alinhamento e balanceamento - 30 reais&#10;serviço: mão de obra - 130 reais&#10;peça: 2 pneus dianteiros - 600 reais&#10;aplica desconto de 10%"></textarea>
           <div id="parsedPreview" class="parsed-preview"></div>
           <div class="button-row">
             <button id="backBudgetTextButton" class="secondary-button">Voltar</button>
             <button id="finishBudgetButton" class="primary-button">Salvar orçamento</button>
           </div>
         </div>
+      </section>
+
+      <section id="detailView" class="view">
+        <div id="detailCard" class="detail-card"></div>
       </section>
 
       <section id="officeView" class="view">
@@ -161,17 +168,14 @@
             <label>Nome da oficina <input id="officeNameInput" /></label>
             <label>Endereço <input id="officeAddressInput" /></label>
             <label>Telefone <input id="officePhoneInput" /></label>
-            <label>E-mail de contato <input id="officeEmailInput" type="email" /></label>
+            <label>E-mail de contato <input id="officeEmailInput" /></label>
+            <label>Token API Placas <input id="officeApiTokenInput" /></label>
           </div>
           <div class="button-row">
             <button id="cancelOfficeButton" class="secondary-button">Cancelar</button>
             <button id="saveOfficeButton" class="primary-button">Salvar dados</button>
           </div>
         </div>
-      </section>
-
-      <section id="detailView" class="view">
-        <div id="detailCard" class="detail-card"></div>
       </section>
     </main>
 

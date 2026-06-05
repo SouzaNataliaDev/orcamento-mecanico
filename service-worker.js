@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-mecanico-v6-api-placas";
+const CACHE_NAME = "orcamento-mecanico-v7-api-placas-manual-fix";
 const FILES = ["./", "./index.html", "./styles.css", "./script.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
