@@ -68,6 +68,7 @@
           <h2>Ler placa</h2>
           <div class="camera-box">
             <video id="cameraPreview" autoplay playsinline muted></video>
+            <canvas id="plateCanvas" hidden></canvas>
             <div class="plate-frame">PLACA</div>
           </div>
           <p id="cameraStatus" class="status-text">Abrindo câmera traseira...</p>
@@ -147,7 +148,7 @@
         <div class="step-card wide-card">
           <p class="step-label">Passo 5 de 5</p>
           <h2>Diga o orçamento e valor</h2>
-          <textarea id="budgetTextInput" class="budget-text" placeholder="serviço: alinhamento e balanceamento - 30 reais&#10;serviço: mão de obra - 130 reais&#10;peça: 2 pneus dianteiros - 600 reais&#10;aplica desconto de 10%"></textarea>
+          <textarea id="budgetTextInput" class="budget-text" placeholder="alinhamento 50&#10;mão de obra 130&#10;2 pivôs 10&#10;peça: filtro de óleo 40&#10;desconto 10%"></textarea>
           <div id="parsedPreview" class="parsed-preview"></div>
           <div class="button-row">
             <button id="backBudgetTextButton" class="secondary-button">Voltar</button>
@@ -195,6 +196,7 @@
     <div id="overlay" class="overlay" hidden></div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

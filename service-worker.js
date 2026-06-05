@@ -1,5 +1,5 @@
-const CACHE_NAME = "orcamento-mecanico-v8-delete-budget";
-const FILES = ["./", "./index.html", "./styles.css", "./script.js", "./manifest.webmanifest"];
+const CACHE_NAME = "orcamento-mecanico-v10-completo-logo-ocr";
+const FILES = ["./", "./index.html", "./styles.css", "./script.js", "./manifest.webmanifest", "./logooficina.jpg"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
