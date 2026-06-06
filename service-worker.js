@@ -1,4 +1,4 @@
-const CACHE_NAME = "orcamento-mecanico-v11";
+const CACHE_NAME = "orcamento-mecanico-v12-lovable-skin";
 const FILES = [
   "./",
   "./index.html",
