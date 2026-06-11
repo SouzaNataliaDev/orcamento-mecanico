@@ -3,7 +3,7 @@
 Esta versão altera a geração da O.S/PDF para espelhar o modelo enviado da AMMAR.
 
 Modelo aplicado:
-- Cabeçalho cinza com AMMAR OFICINA MECÂNICA
+- Cabeçalho cinza com AMMAR OFICINA MECANICA
 - Endereço, telefone e e-mail
 - Dados do Cliente
 - Dados do Veículo
